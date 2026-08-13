@@ -1,7 +1,9 @@
 import { ViewFrame } from "@/components/layout/ViewFrame";
 import { Placeholder } from "@/components/common/Placeholder";
+import { requireAuthorizedPage } from "@/lib/auth";
 
-export default function CalendarPage() {
+export default async function CalendarPage() {
+  await requireAuthorizedPage();
   return (
     <ViewFrame title="Calendar">
       <Placeholder

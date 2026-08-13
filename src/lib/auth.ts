@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { timingSafeEqual } from "node:crypto";
 
 // Device authorization. There is no user login: the wall is authorized once by
@@ -52,6 +53,28 @@ export async function isAuthorizedDevice(): Promise<boolean> {
   const store = await cookies();
   const presented = store.get(DEVICE_COOKIE)?.value;
   return tokensMatch(presented, expected);
+}
+
+/**
+ * Page gate. Must be `await`ed as the FIRST statement of every protected page
+ * server component — before it returns any protected JSX:
+ *
+ *   export default async function CalendarPage() {
+ *     await requireAuthorizedPage();
+ *     return <ViewFrame …>…</ViewFrame>;
+ *   }
+ *
+ * SECURITY (Phase 0.1, load-bearing): the (protected) layout gate is NOT enough
+ * on its own. A layout `redirect()` stops the layout's own chrome from
+ * rendering, but Next renders each page as an independent segment, so on a
+ * full-document request the page's RSC flight is still serialized into the 307
+ * redirect document — leaking the rendered page to an unauthenticated client.
+ * Gating inside the page means the protected JSX is never reached, so there is
+ * nothing to serialize. Keep BOTH gates: the layout keeps the pure
+ * `.rsc`/segment-prefetch surface empty; this keeps the full-document body empty.
+ */
+export async function requireAuthorizedPage(): Promise<void> {
+  if (!(await isAuthorizedDevice())) redirect("/setup");
 }
 
 /**

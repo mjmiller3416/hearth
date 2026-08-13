@@ -1,11 +1,13 @@
 import { ViewFrame } from "@/components/layout/ViewFrame";
 import { MEMBERS } from "@/lib/config";
+import { requireAuthorizedPage } from "@/lib/auth";
 
 // Phase 0 settings is intentionally thin. It shows the member color system —
 // the display's signature and primary information channel — so the palette can
 // be sanity-checked on the real hardware, plus a note on how the device is
 // authorized. Real settings, if any, arrive with the views that need them.
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  await requireAuthorizedPage();
   return (
     <ViewFrame title="Settings">
       <div className="flex h-full flex-col gap-10">
