@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hearth">
+  <rect width="512" height="512" rx="112" fill="#f4efe4"/>
+  <!-- hearth flame: coral outer, amber inner — the household's warm mark -->
+  <path
+    d="M256 116 C 292 176, 340 200, 340 276 C 340 342, 302 396, 256 396 C 210 396, 172 342, 172 276 C 172 208, 220 178, 256 116 Z"
+    fill="#c4573f"/>
+  <path
+    d="M256 216 C 276 250, 300 262, 300 302 C 300 336, 280 364, 256 364 C 232 364, 212 336, 212 302 C 212 274, 236 256, 256 216 Z"
+    fill="#c98a1e"/>
+</svg>

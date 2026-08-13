@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   Hearth theme — a household ledger, not a dashboard (spec §7).
+
+   A warm neutral ground. The four member colors are the ONLY saturated
+   elements on screen; everything else stays quiet so color carries meaning.
+   Member color is defined once here and mirrored in src/lib/config.ts.
+   ============================================================================ */
+@theme {
+  /* ── Ground & surfaces (warm neutral; light, per always-on constraint) ── */
+  --color-ground: #f4efe4; /* main background */
+  --color-ground-2: #efe8d9; /* subtle inset */
+  --color-surface: #fbf8f1; /* panels, active rail item */
+
+  /* ── Ink (warm near-black text) ── */
+  --color-ink: #2b2620; /* primary text */
+  --color-ink-soft: #6f675a; /* secondary text */
+  --color-ink-faint: #9a917f; /* timestamps, footnotes */
+
+  /* ── Hairlines (rules instead of card borders/shadows) ── */
+  --color-hairline: #e4ddcc;
+  --color-hairline-strong: #d6cdb8;
+
+  /* ── Member colors (the only saturated elements) ── */
+  --color-mitchell: #3f8f5b; /* green — locked by spec D3 */
+  --color-maryann: #c4573f; /* coral */
+  --color-kid-a: #3a6ea5; /* blue */
+  --color-kid-b: #c98a1e; /* amber */
+
+  /* ── Fonts ── */
+  --font-display: var(--font-fraunces); /* characterful face: dates, headings */
+  --font-body: var(--font-inter); /* clean face: everything else */
+
+  /* ── Type scale ─────────────────────────────────────────────────────────
+     Tuned for a 1920×1080 landscape panel viewed from six to ten feet. Body
+     minimum is deliberately large. VERIFY PHYSICALLY on the real hardware
+     (acceptance #6) and adjust these tokens only — nowhere else. ── */
+  --text-stamp: 1rem; /* 16px — timestamps */
+  --text-stamp--line-height: 1.3;
+  --text-label: 1.25rem; /* 20px — sidebar labels, chips */
+  --text-label--line-height: 1.2;
+  --text-body: 1.75rem; /* 28px — body minimum */
+  --text-body--line-height: 1.4;
+  --text-title: 2.25rem; /* 36px */
+  --text-title--line-height: 1.2;
+  --text-display: 3rem; /* 48px — header day/time */
+  --text-display--line-height: 1.1;
+  --text-heading: 3.75rem; /* 60px — view titles */
+  --text-heading--line-height: 1.05;
+  --text-date: 4.5rem; /* 72px — the most confident thing on the calendar */
+  --text-date--line-height: 1;
+}
+
+/* ============================================================================
+   Base + kiosk guards (Phase 0 #14). Text selection, long-press callouts,
+   pinch/double-tap zoom, and pull-to-refresh are all accidental-touch hazards
+   on a wall. Disable them globally. The JS counterparts live in KioskGuards.
+   ============================================================================ */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* No pull-to-refresh / overscroll glow. */
+    overscroll-behavior: none;
+  }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--color-ground);
+    color: var(--color-ink);
+    overscroll-behavior: none;
+    /* No text selection. */
+    -webkit-user-select: none;
+    user-select: none;
+    /* No long-press callout on iOS. */
+    -webkit-touch-callout: none;
+    /* Disables double-tap-to-zoom; taps still register. */
+    touch-action: manipulation;
+  }
+
+  * {
+    /* No tap flash on touch. */
+    -webkit-tap-highlight-color: transparent;
+  }
+}
