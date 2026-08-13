@@ -24,10 +24,15 @@ export function GET(req: NextRequest) {
   const presented = req.nextUrl.searchParams.get("token") ?? "";
 
   if (tokensMatch(presented, expected)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/calendar";
-    url.search = "";
-    const res = NextResponse.redirect(url);
+    // Relative redirect on purpose. Behind Railway's proxy, req.nextUrl carries
+    // the container's internal bind host (0.0.0.0:3000), so an absolute redirect
+    // built from it leaks that unroutable address to the browser
+    // (ERR_ADDRESS_INVALID). A relative Location is resolved by the browser
+    // against the public origin it actually requested.
+    const res = new NextResponse(null, {
+      status: 303,
+      headers: { location: "/calendar" },
+    });
     res.cookies.set(DEVICE_COOKIE, expected as string, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
