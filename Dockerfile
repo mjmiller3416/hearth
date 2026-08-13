@@ -10,7 +10,11 @@ FROM node:20-alpine AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# Use `npm install` instead of `npm ci`: the lockfile is generated on Windows,
+# which prunes the Linux/wasm optional deps of @tailwindcss/oxide (@emnapi/*).
+# `npm ci`'s strict sync check then fails on Alpine. `npm install` reconciles
+# the correct platform deps at build time while still honoring pinned versions.
+RUN npm install --no-audit --no-fund
 
 # Rebuild the source only when needed
 FROM base AS builder
