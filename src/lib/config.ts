@@ -15,7 +15,7 @@ export const appConfig = {
 //
 // Mitchell is locked to green by spec D3. The other three are an auto-assigned
 // warm, distance-legible set; retune the hex values in globals.css if desired.
-export type MemberId = "maryann" | "mitchell" | "kidA" | "kidB";
+export type MemberId = "maryann" | "mitchell" | "lincoln" | "ollie";
 
 export interface Member {
   id: MemberId;
@@ -27,8 +27,8 @@ export interface Member {
 export const MEMBERS: Member[] = [
   { id: "maryann", name: "Maryann", colorVar: "--color-maryann" },
   { id: "mitchell", name: "Mitchell", colorVar: "--color-mitchell" },
-  { id: "kidA", name: "Kid A", colorVar: "--color-kid-a" },
-  { id: "kidB", name: "Kid B", colorVar: "--color-kid-b" },
+  { id: "lincoln", name: "Lincoln", colorVar: "--color-lincoln" },
+  { id: "ollie", name: "Ollie", colorVar: "--color-ollie" },
 ];
 
 // ── Navigation ──────────────────────────────────────────────────────────────

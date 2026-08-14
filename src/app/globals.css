@@ -25,8 +25,8 @@
   /* ── Member colors (the only saturated elements) ── */
   --color-mitchell: #3f8f5b; /* green — locked by spec D3 */
   --color-maryann: #c4573f; /* coral */
-  --color-kid-a: #3a6ea5; /* blue */
-  --color-kid-b: #c98a1e; /* amber */
+  --color-lincoln: #3a6ea5; /* blue */
+  --color-ollie: #c98a1e; /* amber */
 
   /* ── Fonts ── */
   --font-display: var(--font-fraunces); /* characterful face: dates, headings */
