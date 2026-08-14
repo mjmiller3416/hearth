@@ -257,11 +257,21 @@ export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]
 
   const perCalendar = await Promise.all(
     members.map(async (member) => {
-      if (inWindow) {
-        const store = await ensureFresh(member, now);
-        return [...store.events.values()].filter((ev) => overlaps(ev, start, end));
+      try {
+        if (inWindow) {
+          const store = await ensureFresh(member, now);
+          return [...store.events.values()].filter((ev) => overlaps(ev, start, end));
+        }
+        return await directFetch(member, start, end);
+      } catch (err) {
+        // One unreadable calendar must not blank the whole wall (spec §6.2). A
+        // 404/403 here is a config problem — the calendar isn't shared with the
+        // household account — not a transient outage. Skip it, keep the others,
+        // and log which one so the misconfigured share is diagnosable. The next
+        // poll retries, so it self-heals once the share is fixed.
+        console.error(`[calendar] skipping ${member.calendarId}:`, err);
+        return [] as CalendarEvent[];
       }
-      return directFetch(member, start, end);
     }),
   );
 
