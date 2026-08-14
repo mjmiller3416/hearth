@@ -9,11 +9,12 @@ real data and logic; Hearth reads three APIs and renders them. See
 [`docs/app-spec.md`](docs/app-spec.md) for the full spec and locked decisions,
 and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
 
-**Status:** Phase 0.1 — the shell, hardened. Routing, the stale-data contract,
-kiosk hardening, and deploy scaffolding are in place; every view renders a
-placeholder. Device authorization has moved out of middleware into the route
-and page logic itself (see [Security](#security)), and Next is on 16.3.0.
-Content lands phase by phase from Phase 1.
+**Status:** Phase 1 — Calendar. The shell (routing, the stale-data contract,
+kiosk hardening, deploy scaffolding) is in place and hardened; device
+authorization lives in the route and page logic, not middleware (see
+[Security](#security)); Next is on 16.3.0. The **Calendar** view now renders the
+family's Google calendars (see [Calendar](#calendar-phase-1)); Tasks, Lists,
+Meals, and Recipes still render placeholders and land phase by phase.
 
 ## Stack
 
@@ -91,6 +92,43 @@ components, and never reaches the browser bundle.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` / `CALENDAR_MAP` | 1 | Google Calendar read access. |
 | `TADA_API_URL` / `TADA_DEVICE_TOKEN` / `HEARTH_ADULT_ID` | 2 | Tada! reads + the one scoped write. |
 | `MEALGENIE_API_URL` / `MEALGENIE_DEVICE_TOKEN` | 4 | MealGenie read-only. |
+
+## Calendar (Phase 1)
+
+The Calendar view reads the four family Google calendars and renders a month
+grid (week view is a secondary toggle). Google Calendar is the system of record
+— Hearth is **read only** (spec D2). Each event is filled in its owning
+calendar's member color (spec D3); the chip row across the top filters the grid
+to one member.
+
+**One-time manual setup** (per [`docs/plans/prompts.md`](docs/plans/prompts.md)
+Phase 1, done by an operator — it needs real Google credentials):
+
+1. Create a dedicated household Google account.
+2. From each family member's account, share their calendar into the household
+   account with read access.
+3. In Google Cloud Console: create a project, enable the Calendar API, create
+   OAuth credentials, and run the consent flow **once** as the household account
+   to capture a refresh token.
+4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, and
+   `CALENDAR_MAP` (see [`.env.example`](.env.example)) as Railway service
+   variables.
+
+Until those are set the view degrades calmly to an empty grid — no error, no
+crash (spec §6.2).
+
+**How it reads:** `GET /api/calendar?start=&end=` fetches events across the
+mapped calendars via Google's `events.list`. Recurring events are expanded
+server-side (`singleEvents=true`); polls are incremental using a `syncToken`
+held in process memory (a `410 Gone` discards the token and re-syncs). The
+client polls every 60 seconds through the shared stale-data hook and returns to
+the current month, unfiltered, after five idle minutes. The refresh token is
+read only in the route handler and never reaches the browser.
+
+**Local UI without Google:** set `HEARTH_CALENDAR_MOCK=1` in `.env.local` to
+serve deterministic synthetic events, so the grid, filters, day panel, and week
+view can be exercised offline. It is ignored in production builds even if set,
+so it can never reach the wall.
 
 ## Target device
 
