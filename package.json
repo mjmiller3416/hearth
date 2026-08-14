@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
+    "check:auth": "node scripts/check-protected-guards.mjs",
+    "prebuild": "npm run check:auth",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
