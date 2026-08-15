@@ -11,6 +11,12 @@
 // Keeping it here (not in config.ts) means config stays pure identity data,
 // importable from server code, while this stays a client concern.
 
+// Non-member fill slugs (Phase 1.5), defined here so client chips can reference
+// them without importing the server-only calendar config. Their CSS tokens live
+// in globals.css.
+export const NEUTRAL_COLOR = "neutral"; // untagged, no owning-calendar default
+export const EVERYONE_COLOR = "everyone"; // four or more tagged members
+
 /** The CSS custom property holding this member's color, e.g. "--color-ollie". */
 export function colorVar(color: string): string {
   return `--color-${color}`;
@@ -18,11 +24,12 @@ export function colorVar(color: string): string {
 
 // Amber is light enough that white text on a solid fill fails a distance
 // legibility check; it takes dark ink instead. The other three (coral, green,
-// blue) are dark enough for white. If a calendar is mapped to an unknown color
-// key we fall back to light text on a neutral fill (see chip component).
-const DARK_TEXT_MEMBERS = new Set(["ollie"]);
+// blue) are dark enough for white. The untagged "neutral" fill is a light warm
+// gray and also takes dark ink; the "everyone" fill (4+ tagged members) is a
+// warm slate that takes white. Unknown keys fall back to light text.
+const DARK_TEXT_COLORS = new Set(["ollie", NEUTRAL_COLOR]);
 
-/** Whether a solid fill of this member color should carry light or dark text. */
+/** Whether a solid fill of this color should carry light or dark text. */
 export function textOn(color: string): "light" | "dark" {
-  return DARK_TEXT_MEMBERS.has(color) ? "dark" : "light";
+  return DARK_TEXT_COLORS.has(color) ? "dark" : "light";
 }

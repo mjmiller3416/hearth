@@ -22,11 +22,9 @@
   --color-hairline: #e4ddcc;
   --color-hairline-strong: #d6cdb8;
 
-  /* ── Member colors (the only saturated elements) ── */
-  --color-mitchell: #3f8f5b; /* green — locked by spec D3 */
-  --color-maryann: #c4573f; /* coral */
-  --color-lincoln: #3a6ea5; /* blue */
-  --color-ollie: #c98a1e; /* amber */
+  /* Member colors live in the plain :root block below, NOT here — see the note
+     there. Everything in @theme is consumed by a Tailwind utility (bg-*, text-*,
+     border-*); the member colors are not, so they must not sit in @theme. */
 
   /* ── Fonts ── */
   --font-display: var(--font-fraunces); /* characterful face: dates, headings */
@@ -50,6 +48,29 @@
   --text-heading--line-height: 1.05;
   --text-date: 4.5rem; /* 72px — the most confident thing on the calendar */
   --text-date--line-height: 1;
+}
+
+/* ============================================================================
+   Member colors — the only saturated elements on screen (spec §7). These are
+   consumed exclusively through runtime `var(--color-<slug>)` in inline styles
+   (event chips, member chips, avatars), never through a Tailwind utility. That
+   matters: Tailwind v4 tree-shakes @theme variables it can't see referenced by a
+   generated utility, so a color defined in @theme but only used via a dynamic
+   var() string is DROPPED from :root and the chip renders colorless. Declaring
+   them here in a plain :root block keeps them always emitted. Mitchell is locked
+   to green by spec D3; retune the others' hex here (the single source).
+   ============================================================================ */
+:root {
+  --color-mitchell: #3f8f5b; /* green — locked by spec D3 */
+  --color-maryann: #c4573f; /* coral */
+  --color-lincoln: #3a6ea5; /* blue */
+  --color-ollie: #c98a1e; /* amber */
+
+  /* Chip fills for events that name no single person (Phase 1.5). Neutral =
+     untagged with no owning-calendar default; everyone = four or more tagged
+     members, one defined treatment rather than four slivers. Both stay quiet. */
+  --color-neutral: #c9bfa8; /* light warm gray — takes dark ink */
+  --color-everyone: #7d7461; /* warm slate — takes white */
 }
 
 /* ============================================================================

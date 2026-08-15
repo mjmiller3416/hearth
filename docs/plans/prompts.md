@@ -186,6 +186,128 @@ The calendar is the one thing this household actually uses on their current Skyl
 
 ---
 
+# Hearth — Phase 1.5: Event Creation
+
+Run after Phase 1 is deployed and in use. Insert into `hearth-build-prompts.md` between Phase 1 and Phase 2. The spec amendments below should be applied to `hearth-spec.md` §2 at the same time.
+
+---
+
+# Part A — Spec amendments
+
+Two locked decisions change. Replace them in `hearth-spec.md` §2 rather than appending, and keep the rationale — it is the part that stops a future session from reverting them.
+
+## D2 (amended) — Google Calendar is the system of record. Hearth may create events.
+
+Unchanged: Hearth does not build a calendar, does not store events, and does not maintain its own copy of anything. Google holds the data; phones use the Google Calendar app; widgets and notifications come from Google for free.
+
+Changed: Hearth is now a read-write client for **event creation only**. It may not edit or delete events. Editing a recurring event opens the this-instance / this-and-following / all-events question, plus conflict handling when two people edit at once, and none of that is what a wall display is for. Corrections happen on a phone.
+
+## D3 (amended) — Event color comes from member tags, falling back to the owning calendar.
+
+The original decision — color determined solely by which calendar owns the event, with no tagging feature — was correct for a read-only display and is wrong now that events can be created here. Its load-bearing use case was Maryann creating Lincoln's appointment directly on Mitchell's calendar so it rendered green. That worked, but it conflates two separate ideas: where an event lives, and who it concerns.
+
+The replacement separates them:
+
+- **Where it lives** is the Google calendar the event is written to. Selected at creation.
+- **Who it concerns** is a set of Hearth member tags stored on the event.
+
+An event tagged with two members renders half-and-half. Untagged events fall back to their owning calendar's color, which is exactly the Phase 1 behavior — so every event that already exists keeps rendering the way it does today, and there is no backfill.
+
+Tags are stored in `extendedProperties.private` on the Google event. This is arbitrary key/value data that Google persists, returns on read, and never displays in its own UI. It behaves like an internal tag while requiring no database and no sync layer — which is why it does not violate D1.
+
+## D9 (new) — Reminders are per-calendar, and that imprecision is accepted.
+
+Google fires reminders to everyone subscribed to the owning calendar with notifications enabled, not to the tagged members. A reminder on Lincoln's appointment pings the whole household.
+
+The alternative — using real Google attendees instead of extended properties — would notify each person individually and correctly, but generates invitation emails and RSVP prompts for every piece of family logistics, and requires email addresses for the kids. Too noisy for the value.
+
+Accepted as-is. If it becomes annoying in practice, switching the tag mechanism from extended properties to attendees is a contained change to the read and write paths, not a redesign.
+
+## D10 (new) — Countdown is a Hearth-only flag.
+
+Stored as an extended property, rendered by Hearth, ignored by Google. Countdown and repeat are mutually exclusive: counting down to a recurring event means counting to the next occurrence, which is a different feature and not this one.
+
+---
+
+# Part B — Build prompt
+
+## Context
+
+Phase 1 renders a read-only Google Calendar. This phase adds event creation from the wall, modeled on the Skylight interface the household already knows: a form where you pick which calendar the event syncs to, and separately tag which family members it concerns.
+
+Read Part A before starting. Two locked decisions from the original spec are being deliberately replaced, and the reasoning matters.
+
+## Locked decisions
+
+- **Create only.** No editing, no deletion. Both happen on phones.
+- Member tags live in `extendedProperties.private.hearthMembers` as a comma-separated list of member keys.
+- Countdown lives in `extendedProperties.private.hearthCountdown`.
+- **Recurrence is native Google RRULE**, not an extended property. It is real calendar data and phones must honor it.
+- **Reminders are native Google reminders** via `reminders.overrides`. Per-calendar imprecision is accepted per D9.
+- Untagged events fall back to owning-calendar color. No backfill of existing events.
+- Countdown and repeat cannot both be enabled on one event.
+- The write path validates the target calendar against an allowlist. A crafted request must not be able to write to an arbitrary calendar the household account happens to have access to.
+
+## Manual setup
+
+1. **Grant write access.** The household account currently has read access to the shared calendars. For every calendar that should appear in the picker, change its sharing permission to **Make changes to events**. Without this, event creation returns 403 on those calendars while succeeding on ones the household account owns — a confusing partial failure.
+2. **Re-consent with a write scope.** Cloud Console → Data access → add `https://www.googleapis.com/auth/calendar.events`. Remove `calendar.readonly` — the new scope covers reading. Then re-run the Playground flow and replace `GOOGLE_REFRESH_TOKEN` in Railway.
+3. Revoke the previous grant at myaccount.google.com/permissions once the new token is confirmed working.
+4. Set `HOUSEHOLD_TIMEZONE` in Railway to the IANA name (e.g. `America/New_York`). Google requires an explicit timezone on event creation and will not infer it.
+
+## Config refactor
+
+Members and calendars are no longer the same thing — there are more calendars than people, and a tag is not a calendar. Split the existing config:
+
+- **`MEMBERS`** — JSON array of `{ key, name, color }`. The canonical list of people who can be tagged. `key` is a stable lowercase slug and is what gets written into `hearthMembers`.
+- **`CALENDAR_MAP`** — JSON map of calendar ID to `{ label, writable, defaultMemberKey? }`. `label` shows in the picker, `writable` controls whether it appears there at all, `defaultMemberKey` supplies the fallback color for untagged events on that calendar.
+
+## Checklist
+
+1. Refactor config into `MEMBERS` and `CALENDAR_MAP` as described above. Update the Phase 1 read path to use the new shape.
+2. Extend the Phase 1 normalizer to read `extendedProperties.private.hearthMembers` into a `memberKeys: string[]` field, and `hearthCountdown` into a boolean. Missing properties yield an empty array and false.
+3. Build a `resolveEventColors(event)` helper returning an ordered array of colors: the tagged members' colors when tags exist, otherwise a single-element array from the owning calendar's `defaultMemberKey`, otherwise a neutral.
+4. Update the event chip to render multiple colors as **hard-stop vertical bands** — a `linear-gradient` with coincident stops, not a blend. A gradient blend at six feet reads as a smudge.
+5. Cap bands at three. Four or more tagged members renders a single defined "everyone" treatment rather than four slivers.
+6. Build `POST /api/calendar/events`. Validate: title non-empty, end after start, `calendarId` present in `CALENDAR_MAP` **with `writable: true`**, every submitted member key present in `MEMBERS`, and countdown and recurrence not both set. Reject with 400 and a specific message on each.
+7. In that handler, construct the Google event: `summary`, `start`/`end` as `date` for all-day or `dateTime` plus `timeZone` for timed, `recurrence` as an RRULE array when repeating, `reminders` with `useDefault: false` and an `overrides` entry when a reminder is set, and `extendedProperties.private` carrying `hearthMembers` and `hearthCountdown`.
+8. Return the created event, normalized through the same path as reads, so the client receives an object identical in shape to a polled one.
+9. Build the Add Event panel, ordered to match the interface the household already knows: Title, All-day toggle, Start and End (date and time), Repeats, Countdown, Reminder, Assign, Calendar. Slides in from the right over the grid.
+10. Wire two entry points: a floating add button, and tapping an empty area of a day cell — which pre-fills that date. The second is the one that will get used.
+11. All-day toggle hides the time fields and switches the payload to `date` form.
+12. Default a new event to the tapped day at the next upcoming hour, running one hour. Nobody should have to set four fields to log a 3pm appointment.
+13. Repeats offers daily, weekly on the start day, monthly on the start date, and yearly. End condition: never, after N occurrences, or until a date. Build the RRULE server-side from these choices, not in the browser.
+14. Disable the Countdown toggle whenever Repeats is on, with a one-line explanation rather than a silent disabled state.
+15. Reminder offers none, at time of event, 10 minutes, 30 minutes, 1 hour, and 1 day before. Method `popup`.
+16. Assign renders the `MEMBERS` list as tappable colored avatar circles, multi-select, showing selection state clearly. Zero selected is valid and means untagged.
+17. Calendar picker lists writable entries from `CALENDAR_MAP` by label, defaulting to the most-recently-used value held in component state.
+18. Size every control for a hand reaching up to a wall. Date and time pickers especially — a compact stepper beats a scroll wheel at this distance.
+19. On submit, disable the button, POST, and on success insert the returned event into local state immediately, keyed by its Google event id so the next poll dedupes rather than duplicating.
+20. On failure, keep the panel open with all fields intact and show the server's message inline. Never discard typed input on error.
+21. Render countdown events with a day-count badge on the chip, plus a single-line strip above the grid showing the soonest upcoming countdown event only. One line, not a section.
+22. Close the panel and discard any in-progress draft after 5 minutes of no interaction, consistent with the other views' idle reset.
+23. Update the README's Security section to note that the device token now gates a write path to Google Calendar, and that calendar targets are allowlisted.
+
+## Acceptance criteria
+
+1. An event created from the wall appears in Google Calendar on a phone within a minute, on the chosen calendar.
+2. That event's title, times, all-day flag, recurrence, and reminder are all correct in Google's own UI.
+3. **Extended properties round-trip on a calendar the household account accesses via sharing, not just on ones it owns.** Create a tagged event on Maryann's calendar, wait for a full poll cycle, and confirm the tags come back. Verify this early — it is the one genuinely uncertain mechanism in this phase.
+4. A two-member event renders as two hard-edged bands. A three-member event renders three. Four or more renders the "everyone" treatment.
+5. A single-member event renders solid, and an untagged event renders in its owning calendar's color exactly as it did before this phase.
+6. Events created before this phase still render correctly with no migration.
+7. Tags and countdown are invisible in Google Calendar's web and mobile UI.
+8. A recurring event created on the wall repeats correctly on a phone, honoring the end condition.
+9. Countdown cannot be enabled while Repeats is on.
+10. A reminder set on the wall fires on a subscribed phone.
+11. Submitting with an empty title, an end before its start, a calendar not in the allowlist, or an unknown member key returns 400 with a specific message and preserves form state.
+12. A POST naming a valid Google calendar that is absent from `CALENDAR_MAP`, or present but `writable: false`, is rejected.
+13. Creating an event produces exactly one chip, not two, after the following poll.
+14. Times land correctly with respect to `HOUSEHOLD_TIMEZONE` — verify with an event near midnight, which is where timezone errors surface.
+15. All form controls are operable standing at the wall without a stylus or precision aim.
+
+---
+
 # Phase 2 — Tasks
 
 ## Context

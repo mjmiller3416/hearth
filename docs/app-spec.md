@@ -37,13 +37,24 @@ These are settled. A future build session should not relitigate them without an 
 **D1 — Hearth has no database.**
 No schema, no migrations, no ORM. Configuration lives in environment variables. If a phase appears to need persistence, stop and reconsider whether the state belongs in Tada! or MealGenie.
 
-**D2 — Google Calendar is the system of record for events.**
-Hearth does not build a calendar. It reads one. This decision is driven by a hard platform constraint: PWAs cannot provide home screen widgets on either iOS or Android. A custom calendar would mean no phone widget, or two native apps. Google Calendar already ships widgets, notifications, natural-language entry, voice assistants, and offline support on both platforms — at zero build cost.
+**D2 — Google Calendar is the system of record. Hearth may create events.**
+*(Amended in Phase 1.5 — was "…for events. Hearth does not build a calendar. It reads one.")*
+Hearth does not build a calendar, does not store events, and does not maintain its own copy of anything. Google holds the data; phones use the Google Calendar app; widgets and notifications come from Google for free. This is driven by a hard platform constraint: PWAs cannot provide home screen widgets on either iOS or Android. A custom calendar would mean no phone widget, or two native apps. Google Calendar already ships widgets, notifications, natural-language entry, voice assistants, and offline support on both platforms — at zero build cost.
 
-**D3 — Event color is determined by the owning calendar, not by attendee assignment.**
-One Google Calendar per family member, each shared with everyone at edit permission. An event's stripe color comes from which calendar it lives on. There is no tagging feature, no assignment table, no attendee-resolution logic.
+What changed: Hearth is now a read-write client for **event creation only**. It may not edit or delete events. Editing a recurring event opens the this-instance / this-and-following / all-events question, plus conflict handling when two people edit at once, and none of that is what a wall display is for. Corrections happen on a phone.
 
-The load-bearing use case: Maryann books a doctor's appointment for Link that Mitchell needs to drive him to. She creates it directly on *Mitchell's* calendar (she has edit rights) titled "Link — Dr. appt." It renders green. Mitchell scans for green. That is the entire feature, and it is implemented by Google's sharing model, not by Hearth.
+**D3 — Event color comes from member tags, falling back to the owning calendar.**
+*(Amended in Phase 1.5 — was "…determined by the owning calendar, not by attendee assignment," with no tagging feature.)*
+The original decision — color determined solely by which calendar owns the event — was correct for a read-only display and is wrong now that events can be created here. Its load-bearing use case was Maryann creating Lincoln's appointment directly on Mitchell's calendar so it rendered green. That worked, but it conflates two separate ideas: where an event lives, and who it concerns.
+
+The replacement separates them:
+
+- **Where it lives** is the Google calendar the event is written to. Selected at creation.
+- **Who it concerns** is a set of Hearth member tags stored on the event.
+
+An event tagged with two members renders half-and-half (hard-edged bands, not a blend). Untagged events fall back to their owning calendar's color, which is exactly the Phase 1 behavior — so every event that already exists keeps rendering the way it does today, and there is no backfill.
+
+Tags are stored in `extendedProperties.private` on the Google event. This is arbitrary key/value data that Google persists, returns on read, and never displays in its own UI. It behaves like an internal tag while requiring no database and no sync layer — which is why it does not violate D1.
 
 **D4 — Maryann's task tab shows what is done, not what is left.**
 This is the most consequential design decision in the project and the one most likely to be quietly reversed by a well-meaning future change.
@@ -65,6 +76,14 @@ Hearth is a URL. It runs in any browser. Build it, run it on a spare tablet or a
 
 **D8 — If the Skylight is used, disable the launcher. Never wipe or flash it.**
 There are no public firmware images for these devices and Skylight support declines to provide them. A failed flash is an unrecoverable brick. `pm disable-user com.skylight` is reversible with one command; a bad `dd` is not.
+
+**D9 — Reminders are per-calendar, and that imprecision is accepted.** *(Added in Phase 1.5.)*
+Google fires reminders to everyone subscribed to the owning calendar with notifications enabled, not to the tagged members. A reminder on Lincoln's appointment pings the whole household.
+
+The alternative — using real Google attendees instead of extended properties — would notify each person individually and correctly, but generates invitation emails and RSVP prompts for every piece of family logistics, and requires email addresses for the kids. Too noisy for the value. Accepted as-is. If it becomes annoying in practice, switching the tag mechanism from extended properties to attendees is a contained change to the read and write paths, not a redesign.
+
+**D10 — Countdown is a Hearth-only flag.** *(Added in Phase 1.5.)*
+Stored as an extended property, rendered by Hearth, ignored by Google. Countdown and repeat are mutually exclusive: counting down to a recurring event means counting to the next occurrence, which is a different feature and not this one.
 
 ---
 

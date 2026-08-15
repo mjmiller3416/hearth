@@ -1,5 +1,6 @@
 import { ViewFrame } from "@/components/layout/ViewFrame";
-import { MEMBERS } from "@/lib/config";
+import { getMembers } from "@/lib/calendar/config";
+import { colorVar } from "@/lib/calendar/palette";
 import { requireAuthorizedPage } from "@/lib/auth";
 
 // Phase 0 settings is intentionally thin. It shows the member color system —
@@ -8,20 +9,21 @@ import { requireAuthorizedPage } from "@/lib/auth";
 // authorized. Real settings, if any, arrive with the views that need them.
 export default async function SettingsPage() {
   await requireAuthorizedPage();
+  const members = getMembers();
   return (
     <ViewFrame title="Settings">
       <div className="flex h-full flex-col gap-10">
         <section>
           <h2 className="mb-4 text-title text-ink">Family colors</h2>
           <ul className="flex flex-wrap gap-4">
-            {MEMBERS.map((member) => (
+            {members.map((member) => (
               <li
-                key={member.id}
+                key={member.key}
                 className="flex items-center gap-4 rounded-2xl border border-hairline bg-surface px-6 py-4"
               >
                 <span
                   className="size-10 rounded-full"
-                  style={{ backgroundColor: `var(${member.colorVar})` }}
+                  style={{ backgroundColor: `var(${colorVar(member.color)})` }}
                   aria-hidden
                 />
                 <span className="text-body text-ink">{member.name}</span>

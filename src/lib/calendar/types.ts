@@ -2,13 +2,19 @@
 // node:crypto, no process access at module scope beyond what tree-shakes away),
 // so both the route handler and the client view components can import it.
 //
-// Google Calendar is the system of record (spec D2). Hearth reads it and reshapes
-// each event into exactly this flat, render-ready form — nothing the wall does
-// not need to draw a chip.
+// Google Calendar is the system of record (spec D2, amended in Phase 1.5).
+// Hearth reads it and — as of Phase 1.5 — may *create* events on it (create
+// only; edit/delete happen on a phone). Each event is reshaped into exactly this
+// flat, render-ready form: nothing the wall does not need to draw a chip.
 
 /**
- * One event, normalized for the wall. Color and owner come from the *owning
- * calendar* (spec D3), never from attendees — one Google Calendar per person.
+ * One event, normalized for the wall.
+ *
+ * Color comes from member *tags* first, falling back to the owning calendar
+ * (spec D3, amended in Phase 1.5). `where it lives` (calendarId) and `who it
+ * concerns` (memberKeys) are separate ideas now that events can be created here.
+ * The resolved band colors are baked in server-side (`colors`) so client chips
+ * need no access to the members/calendar config.
  */
 export interface CalendarEvent {
   /** Google event id (already expanded for recurring instances). */
@@ -26,22 +32,45 @@ export interface CalendarEvent {
    */
   end: string;
   allDay: boolean;
-  /** The calendar this event lives on — also the filter key for member chips. */
+  /** The Google calendar this event lives on ("where it lives"). */
   calendarId: string;
-  /** Member id (maryann | mitchell | lincoln | ollie); resolves to a color. */
-  color: string;
-  /** Display name of the calendar's owner, for the day panel / week view. */
-  memberName: string;
+  /**
+   * Hearth member tags ("who it concerns"), from
+   * `extendedProperties.private.hearthMembers`. Empty for untagged events —
+   * every Phase 1 event, which keeps rendering by owning-calendar color.
+   */
+  memberKeys: string[];
+  /** Countdown flag, from `extendedProperties.private.hearthCountdown`. */
+  countdown: boolean;
+  /**
+   * The owning calendar's `defaultMemberKey` — the fallback color source for an
+   * untagged event. Null when the calendar declares no default.
+   */
+  defaultMemberKey: string | null;
+  /**
+   * Ordered band colors (palette slugs), resolved server-side by
+   * `resolveEventColors`. One entry for a solid chip; two or three for bands;
+   * four or more collapse to the "everyone" treatment in the chip. Always at
+   * least one element (a neutral) so a chip is never colorless.
+   */
+  colors: string[];
 }
 
 /**
- * One family member's calendar, derived from the CALENDAR_MAP env var. Drives
- * the filter chip row; `color` is the same member-id key an event carries.
+ * One taggable person. The canonical list comes from the `MEMBERS` env var
+ * (Phase 1.5). `key` is the stable slug written into `hearthMembers`; `color`
+ * is a palette slug resolving to `var(--color-<color>)`.
  */
-export interface CalendarMember {
-  calendarId: string;
+export interface Member {
+  key: string;
   name: string;
   color: string;
+}
+
+/** A writable calendar, for the Add Event picker. */
+export interface PickerCalendar {
+  id: string;
+  label: string;
 }
 
 /**
@@ -51,6 +80,41 @@ export interface CalendarMember {
  */
 export interface CalendarPayload {
   events: CalendarEvent[];
-  members: CalendarMember[];
+  /** The taggable people, for filter chips and the Assign control. */
+  members: Member[];
+  /** Writable calendars, for the Add Event calendar picker. */
+  calendars: PickerCalendar[];
   configured: boolean;
+}
+
+// ── Event-creation contract (client → POST /api/calendar/events) ────────────
+// The client sends naive wall-local date/time strings and structured choices;
+// the server attaches HOUSEHOLD_TIMEZONE and builds the RRULE (Phase 1.5 #13 —
+// recurrence is assembled server-side, never in the browser).
+
+export type RepeatFreq = "daily" | "weekly" | "monthly" | "yearly";
+
+export type RepeatEnd =
+  | { mode: "never" }
+  | { mode: "count"; count: number }
+  | { mode: "until"; until: string }; // "YYYY-MM-DD"
+
+export interface RepeatRule {
+  freq: RepeatFreq;
+  end: RepeatEnd;
+}
+
+export interface CreateEventBody {
+  calendarId: string;
+  title: string;
+  allDay: boolean;
+  /** Timed: "YYYY-MM-DDTHH:mm". All-day: "YYYY-MM-DD". Wall-local, naive. */
+  start: string;
+  /** Same forms as `start`. All-day end is INCLUSIVE (the last covered day). */
+  end: string;
+  memberKeys: string[];
+  repeat: RepeatRule | null;
+  countdown: boolean;
+  /** Minutes before start: null = none, 0 = at time of event, else N minutes. */
+  reminderMinutes: number | null;
 }

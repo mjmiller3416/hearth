@@ -9,27 +9,12 @@ export const appConfig = {
 } as const;
 
 // ── Family members ─────────────────────────────────────────────────────────
-// One Google Calendar / task column per person. Member color is the primary
-// information channel across the whole display (spec §7), so it is defined once
-// here and as CSS tokens in globals.css — never as scattered hex values.
-//
-// Mitchell is locked to green by spec D3. The other three are an auto-assigned
-// warm, distance-legible set; retune the hex values in globals.css if desired.
-export type MemberId = "maryann" | "mitchell" | "lincoln" | "ollie";
-
-export interface Member {
-  id: MemberId;
-  name: string;
-  /** CSS custom property name; use as `var(<colorVar>)` for fills/strokes. */
-  colorVar: string;
-}
-
-export const MEMBERS: Member[] = [
-  { id: "maryann", name: "Maryann", colorVar: "--color-maryann" },
-  { id: "mitchell", name: "Mitchell", colorVar: "--color-mitchell" },
-  { id: "lincoln", name: "Lincoln", colorVar: "--color-lincoln" },
-  { id: "ollie", name: "Ollie", colorVar: "--color-ollie" },
-];
+// The canonical list of taggable people is env-driven as of Phase 1.5 (the
+// `MEMBERS` variable), parsed in src/lib/calendar/config.ts — because members
+// and calendars are no longer the same thing. Member color remains the primary
+// information channel (spec §7); the color slugs resolve to the CSS tokens
+// defined once in globals.css (`--color-<slug>`), never scattered hex. Mitchell
+// is locked to green by spec D3.
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 // The sidebar is the whole navigation model: five destinations matching the

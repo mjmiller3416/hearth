@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireDevice } from "@/lib/auth";
-import { getMembers } from "@/lib/calendar/members";
+import { getMembers, getWritableCalendars, hasCalendars } from "@/lib/calendar/config";
 import { getEvents } from "@/lib/google/calendar";
 import { isGoogleConfigured } from "@/lib/google/token";
 import { isMockEnabled } from "@/lib/google/mock";
@@ -41,11 +41,12 @@ export async function GET(req: NextRequest) {
   }
 
   const members = getMembers();
-  const configured = isMockEnabled() || (isGoogleConfigured() && members.length > 0);
+  const calendars = getWritableCalendars();
+  const configured = isMockEnabled() || (isGoogleConfigured() && hasCalendars());
 
   try {
     const events = await getEvents(start, end);
-    const payload: CalendarPayload = { events, members, configured };
+    const payload: CalendarPayload = { events, members, calendars, configured };
     return NextResponse.json(payload);
   } catch (err) {
     // Upstream failure: surface a 502 so the client's stale-data contract keeps

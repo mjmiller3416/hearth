@@ -9,12 +9,13 @@ real data and logic; Hearth reads three APIs and renders them. See
 [`docs/app-spec.md`](docs/app-spec.md) for the full spec and locked decisions,
 and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
 
-**Status:** Phase 1 — Calendar. The shell (routing, the stale-data contract,
-kiosk hardening, deploy scaffolding) is in place and hardened; device
-authorization lives in the route and page logic, not middleware (see
-[Security](#security)); Next is on 16.3.0. The **Calendar** view now renders the
-family's Google calendars (see [Calendar](#calendar-phase-1)); Tasks, Lists,
-Meals, and Recipes still render placeholders and land phase by phase.
+**Status:** Phase 1.5 — Calendar with event creation. The shell (routing, the
+stale-data contract, kiosk hardening, deploy scaffolding) is in place and
+hardened; device authorization lives in the route and page logic, not middleware
+(see [Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
+family's Google calendars and can now **create** events from the wall — with
+per-member tag colors and countdowns (see [Calendar](#calendar-phase-1)); Tasks,
+Lists, Meals, and Recipes still render placeholders and land phase by phase.
 
 ## Stack
 
@@ -74,6 +75,14 @@ security boundary. Every protected surface verifies for itself:
 - The device cookie is `httpOnly`, `secure` (in production), `sameSite=lax`,
   and not readable from client JavaScript.
 
+As of Phase 1.5 the device token also gates a **write** path: `POST
+/api/calendar/events` creates events on Google Calendar. That handler calls
+`requireDevice()` first, before parsing the body, and **allowlists the target
+calendar** — a create is rejected unless its `calendarId` is present in
+`CALENDAR_MAP` with `writable: true`, so a crafted request cannot write to an
+arbitrary calendar the household account happens to have access to. Creation is
+the only write; there is no edit or delete path (spec D2, amended).
+
 The only unauthenticated surfaces are `/setup` (the pairing route, in the
 `app/(public)/` group) and `/health` (a literal `200`). **Any new page or route
 handler must add its own check** — do not reintroduce a middleware gate and
@@ -89,17 +98,38 @@ components, and never reaches the browser bundle.
 | Variable | Phase | Purpose |
 |---|---|---|
 | `HEARTH_DEVICE_TOKEN` | 0 | Long-lived device token for the `/setup` gate. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` / `CALENDAR_MAP` | 1 | Google Calendar read access. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` | 1 · 1.5 | Google Calendar access. Phase 1.5 needs the `calendar.events` (read-write) scope; grant the household account "Make changes to events" on writable calendars. |
+| `MEMBERS` | 1.5 | JSON array of `{ key, name, color }` — the canonical taggable people. |
+| `CALENDAR_MAP` | 1 · 1.5 | JSON map of calendar id → `{ label, writable, defaultMemberKey? }`. `writable` allowlists both the picker and the write path. |
+| `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |
 | `TADA_API_URL` / `TADA_DEVICE_TOKEN` / `HEARTH_ADULT_ID` | 2 | Tada! reads + the one scoped write. |
 | `MEALGENIE_API_URL` / `MEALGENIE_DEVICE_TOKEN` | 4 | MealGenie read-only. |
 
 ## Calendar (Phase 1)
 
-The Calendar view reads the four family Google calendars and renders a month
-grid (week view is a secondary toggle). Google Calendar is the system of record
-— Hearth is **read only** (spec D2). Each event is filled in its owning
-calendar's member color (spec D3); the chip row across the top filters the grid
-to one member.
+The Calendar view reads the family Google calendars and renders a month grid
+(week view is a secondary toggle). Google Calendar is the system of record; as of
+Phase 1.5 Hearth is a **read + create** client — it creates events but never
+edits or deletes them (spec D2, amended; corrections happen on a phone).
+
+Event color comes from **member tags**, falling back to the owning calendar's
+`defaultMemberKey` for untagged events (spec D3, amended). One tag fills the chip
+solid; two or three render as hard-edged color bands; four or more collapse to a
+single "everyone" treatment. Tags and a Hearth-only countdown flag ride along in
+the event's `extendedProperties.private`, invisible in Google's own UI. The chip
+row across the top filters the grid to one member. Tapping an empty day (or the
+floating **+**) opens the Add Event panel: pick which calendar it syncs to,
+tag who it concerns, set repeat / reminder / countdown, and it's written straight
+to Google.
+
+Members and calendars are configured separately (there are more calendars than
+people): `MEMBERS` is the taggable-people list; `CALENDAR_MAP` maps each Google
+calendar to a picker label, a `writable` flag (which also allowlists the write
+path), and a fallback color. See [`.env.example`](.env.example).
+
+The whole view is authored on a fixed **1920×1080** canvas and scaled to fit the
+window it runs in (spec §6.1 — one drawn resolution, fitted, never reflowed), so
+it is pixel-crisp on the wall and never clipped in a smaller dev window.
 
 **One-time manual setup** (per [`docs/plans/prompts.md`](docs/plans/prompts.md)
 Phase 1, done by an operator — it needs real Google credentials):

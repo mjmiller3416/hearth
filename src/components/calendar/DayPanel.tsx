@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { eventsForDay, dayPanelTitle } from "@/lib/calendar/dates";
 import { EventChip } from "./EventChip";
@@ -14,11 +14,15 @@ import { EventChip } from "./EventChip";
 export function DayPanel({
   date,
   events,
+  now,
   onClose,
+  onAddDay,
 }: {
   date: Date;
   events: CalendarEvent[];
+  now: Date;
   onClose: () => void;
+  onAddDay: (date: Date) => void;
 }) {
   const dayEvents = eventsForDay(events, date);
 
@@ -48,14 +52,25 @@ export function DayPanel({
           <h2 className="font-display text-display leading-tight text-ink">
             {dayPanelTitle(date)}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex size-12 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-ground-2"
-          >
-            <X className="size-8" strokeWidth={2} aria-hidden />
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onAddDay(date)}
+              aria-label="Add event on this day"
+              className="flex h-12 items-center gap-2 rounded-full bg-ink px-5 text-label font-medium text-surface transition-colors hover:bg-ink/90"
+            >
+              <Plus className="size-6" strokeWidth={2.5} aria-hidden />
+              Add
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="flex size-12 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-ground-2"
+            >
+              <X className="size-8" strokeWidth={2} aria-hidden />
+            </button>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
@@ -65,7 +80,7 @@ export function DayPanel({
             </p>
           ) : (
             dayEvents.map((ev) => (
-              <EventChip key={ev.id} event={ev} variant="list" />
+              <EventChip key={ev.id} event={ev} variant="list" now={now} />
             ))
           )}
         </div>
