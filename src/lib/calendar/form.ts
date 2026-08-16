@@ -10,7 +10,7 @@ import type {
   RepeatFreq,
   RepeatRule,
 } from "./types";
-import { parseBoundary } from "./dates";
+import { parseBoundary, zonedFields } from "./dates";
 
 export interface DateParts {
   y: number;
@@ -219,21 +219,30 @@ export function buildBody(
 export function draftFromEvent(
   event: CalendarEvent,
   allMemberKeys: string[],
+  tz?: string,
 ): EventDraft {
-  const start = parseBoundary(event.start); // local Date (date-only → local midnight)
-  const startDate = partsFromDate(start);
-  const startTime: TimeParts = { h: start.getHours(), min: start.getMinutes() };
-
+  let startDate: DateParts;
+  let startTime: TimeParts;
   let endDate: DateParts;
   let endTime: TimeParts;
+
   if (event.allDay) {
+    // Date-only, floating: read the calendar day directly, never zoned.
+    startDate = partsFromDate(parseBoundary(event.start));
+    startTime = { h: 9, min: 0 }; // unused for all-day
     // Google's all-day end is EXCLUSIVE; the form's endDate is inclusive.
     endDate = addDaysToParts(partsFromDate(parseBoundary(event.end)), -1);
-    endTime = addOneHour(startTime); // unused for all-day
+    endTime = addOneHour(startTime);
   } else {
-    const end = parseBoundary(event.end);
-    endDate = partsFromDate(end);
-    endTime = { h: end.getHours(), min: end.getMinutes() };
+    // Timed: seed the steppers with the HOUSEHOLD wall clock (Phase 2 #4), so the
+    // pre-filled time matches what the wall shows and a save round-trips exactly —
+    // even if the device's own timezone is set wrong.
+    const sf = zonedFields(parseBoundary(event.start), tz);
+    startDate = { y: sf.y, m: sf.m, d: sf.d };
+    startTime = { h: sf.h, min: sf.mi };
+    const ef = zonedFields(parseBoundary(event.end), tz);
+    endDate = { y: ef.y, m: ef.m, d: ef.d };
+    endTime = { h: ef.h, min: ef.mi };
   }
 
   const isWholeFamily =

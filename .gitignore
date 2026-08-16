@@ -36,3 +36,6 @@ yarn-error.log*
 
 # playwright MCP scratch (local UI verification screenshots)
 .playwright-mcp/
+
+# local settings store fallback (when HEARTH_DATA_DIR is unset)
+/.hearth-data/

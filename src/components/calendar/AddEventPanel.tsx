@@ -1,9 +1,29 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus, Trash2, Users, X } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CalendarPlus,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Minus,
+  Pencil,
+  Plus,
+  Repeat,
+  Sun,
+  Timer,
+  Trash2,
+  Type,
+  Users,
+  X,
+} from "lucide-react";
 import type { CalendarEvent, EditEventBody, Member } from "@/lib/calendar/types";
-import { colorVar, textOn, EVERYONE_COLOR } from "@/lib/calendar/palette";
+import { colorVar, EVERYONE_COLOR } from "@/lib/calendar/palette";
+import { OnScreenKeyboard } from "@/components/common/OnScreenKeyboard";
+import { useTextOn } from "@/components/common/ColorProvider";
+import { useTimeZone } from "@/components/common/TimeZone";
 import {
   addDaysToParts,
   buildBody,
@@ -23,22 +43,25 @@ import {
   type TimeParts,
 } from "@/lib/calendar/form";
 
-// The Add Event panel (Phase 1.5 #9–#20). Slides in from the right over the
-// grid, ordered to match the Skylight interface the household already knows:
-// Title, All-day, Start, End, Repeats, Countdown, Reminder, Assign.
+// The Add / Edit Event panel (Phase 1.5 #9–#20, reworked Phase 2 #5/#7/#9).
+// Slides in from the right over the grid, ordered to match the Skylight
+// interface the household already knows: Title, All-day, Start, End, Repeats,
+// Countdown, Reminder, Assign — each a clearly separated, icon-labeled section.
+//
+// Phase 2 changes:
+//   #5 — tapping the dim scrim closes the panel (not just the X).
+//   #7 — the Title uses the in-app OnScreenKeyboard; no native input ever
+//        focuses, so the OS keyboard never appears and the canvas never shrinks.
+//   #9 — generous separation between options, and a time control that stacks the
+//        value over its steppers so a 4-digit time never reflows to a new line.
 //
 // There is no calendar picker: assignment decides where copies are written.
-// "Assign" defaults to a Family chip (everyone); tapping individuals narrows it
-// to just them, and clearing everyone falls back to Family.
+// "Assign" defaults to a Family chip (everyone). Every control is sized for a
+// hand reaching up to a wall (spec §6.1). The RRULE is built server-side.
 //
-// Every control is sized for a hand reaching up to a wall (spec §6.1); date and
-// time use compact steppers, not scroll wheels (Phase 1.5 #18). The RRULE is
-// built server-side from these choices (Phase 1.5 #13); this only collects them.
-//
-// On submit the button disables, we POST, and on success hand the created event
-// up so it lands in local state immediately (Phase 1.5 #19). On failure the
-// panel stays open with every field intact and shows the server's message
-// inline (Phase 1.5 #20) — typed input is never discarded on error.
+// On submit the button disables, we POST/PUT, and on success hand the event up
+// so it lands on the wall immediately. On failure the panel stays open with
+// every field intact and shows the server's message inline.
 
 const REPEAT_OPTIONS: { v: RepeatChoice; l: string }[] = [
   { v: "none", l: "Doesn't repeat" },
@@ -64,21 +87,53 @@ const REMINDER_OPTIONS: { v: ReminderChoice; l: string }[] = [
 ];
 
 // ── Small controls ───────────────────────────────────────────────────────────
-function Field({
+
+/** A titled section with a leading icon. Every field reads the same way. */
+function Section({
+  icon,
   label,
   children,
   hint,
 }: {
+  icon: ReactNode;
   label: string;
   children: ReactNode;
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col gap-2.5">
-      <span className="text-label font-medium text-ink-soft">{label}</span>
+    <section className="flex flex-col gap-3 border-t border-hairline pt-6 first:border-t-0 first:pt-0">
+      <div className="flex items-center gap-2.5 text-ink-soft">
+        <span className="text-ink-faint" aria-hidden>
+          {icon}
+        </span>
+        <span className="text-label font-semibold uppercase tracking-wide">{label}</span>
+      </div>
       {children}
       {hint && <span className="text-stamp text-ink-faint">{hint}</span>}
-    </div>
+    </section>
+  );
+}
+
+/** An inline "label + control on the right" row with its own leading icon. */
+function InlineRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: ReactNode;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex items-center justify-between gap-4 border-t border-hairline pt-6">
+      <div className="flex items-center gap-2.5 text-ink-soft">
+        <span className="text-ink-faint" aria-hidden>
+          {icon}
+        </span>
+        <span className="text-label font-semibold uppercase tracking-wide">{label}</span>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -142,7 +197,7 @@ function DateStepper({
       <RoundButton onClick={() => onChange(addDaysToParts(value, -1))} label="Previous day">
         <ChevronLeft className="size-6" strokeWidth={2.5} aria-hidden />
       </RoundButton>
-      <span className="min-w-[10rem] flex-1 text-center text-body text-ink">
+      <span className="min-w-[10rem] flex-1 whitespace-nowrap text-center text-body text-ink">
         {dateLabel(value)}
       </span>
       <RoundButton onClick={() => onChange(addDaysToParts(value, 1))} label="Next day">
@@ -152,6 +207,8 @@ function DateStepper({
   );
 }
 
+// The time control stacks the value over its steppers, so a wide "12:30 PM"
+// (the old bug: 4-digit times wrapped to a new line, #9) can never reflow.
 function TimeStepper({
   value,
   onChange,
@@ -160,9 +217,11 @@ function TimeStepper({
   onChange: (v: TimeParts) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="w-28 text-body tabular-nums text-ink">{timeLabel(value)}</span>
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col items-center gap-2.5 rounded-xl bg-ground/60 px-4 py-3">
+      <span className="whitespace-nowrap text-title tabular-nums text-ink">
+        {timeLabel(value)}
+      </span>
+      <div className="flex items-center justify-center gap-6">
         <StepperPair
           label="Hour"
           onDec={() => onChange(stepHour(value, -1))}
@@ -194,7 +253,7 @@ function Toggle({
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className={`flex h-9 w-16 items-center rounded-full p-1 transition-colors ${
+      className={`flex h-9 w-16 shrink-0 items-center rounded-full p-1 transition-colors ${
         on ? "bg-ink" : "bg-hairline-strong"
       }`}
     >
@@ -261,28 +320,36 @@ export function AddEventPanel({
   onEdited?: (event: CalendarEvent, oldEvent: CalendarEvent) => void;
   onDeleted?: (event: CalendarEvent) => void;
 }) {
+  const textOn = useTextOn();
+  const timeZone = useTimeZone();
   const allKeys = members.map((m) => m.key);
   const editing = Boolean(initialEvent);
   const recurring = initialEvent?.recurring ?? false;
   const deletable = Boolean(initialEvent?.hearthGroupId);
 
   const [draft, setDraft] = useState<EventDraft>(() =>
-    initialEvent ? draftFromEvent(initialEvent, allKeys) : defaultDraft(initialDate, now),
+    initialEvent
+      ? draftFromEvent(initialEvent, allKeys, timeZone)
+      : defaultDraft(initialDate, now),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
+  const [kbOpen, setKbOpen] = useState(false);
 
   useEffect(() => setShown(true), []);
 
   // Escape closes — harmless on a touch wall, helpful during development.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        if (kbOpen) setKbOpen(false);
+        else onClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, kbOpen]);
 
   const patch = (p: Partial<EventDraft>) => setDraft((d) => reconcile({ ...d, ...p }));
 
@@ -361,9 +428,13 @@ export function AddEventPanel({
   const canSubmit = !submitting && !recurring && draft.title.trim().length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
-      {/* Dim scrim. Deliberately not tap-to-close: a stray tap on a wall must not
-          discard an in-progress event. Close with the X or Cancel. */}
+    // The whole overlay closes on an outside tap (#5); the panel stops the tap
+    // so interacting inside never dismisses it.
+    <div
+      className="fixed inset-0 z-50 flex justify-end"
+      role="presentation"
+      onClick={() => (kbOpen ? setKbOpen(false) : onClose())}
+    >
       <div className="absolute inset-0 bg-ink/25" aria-hidden />
 
       <div
@@ -373,10 +444,18 @@ export function AddEventPanel({
         role="dialog"
         aria-modal="true"
         aria-label={editing ? "Edit event" : "Add event"}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hairline px-8 py-5">
-          <h2 className="font-display text-display text-ink">
+          <h2 className="flex items-center gap-3 font-display text-display text-ink">
+            <span className="text-ink-soft" aria-hidden>
+              {editing ? (
+                <Pencil className="size-8" strokeWidth={2} />
+              ) : (
+                <CalendarPlus className="size-8" strokeWidth={2} />
+              )}
+            </span>
             {editing ? "Edit event" : "New event"}
           </h2>
           <button
@@ -390,33 +469,43 @@ export function AddEventPanel({
         </div>
 
         {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto px-8 py-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
           {recurring && (
             <p className="rounded-xl bg-ground px-4 py-3 text-body text-ink-soft">
               This is a repeating event — edit it on your phone. You can delete it
               here.
             </p>
           )}
-          <Field label="Title">
-            <input
-              type="text"
-              value={draft.title}
-              onChange={(e) => patch({ title: e.target.value })}
-              placeholder="What's happening?"
-              className="w-full rounded-xl bg-ground px-4 py-3 text-body text-ink outline-none placeholder:text-ink-faint focus:bg-ground-2"
-            />
-          </Field>
 
-          <div className="flex items-center justify-between">
-            <span className="text-label font-medium text-ink-soft">All-day</span>
+          <Section icon={<Type className="size-5" strokeWidth={2} />} label="Title">
+            <button
+              type="button"
+              onClick={() => setKbOpen(true)}
+              aria-label="Event title"
+              className={`flex min-h-[3.75rem] w-full items-center rounded-xl px-4 py-3 text-left text-body transition-colors ${
+                kbOpen ? "bg-ground-2 ring-2 ring-ink/15" : "bg-ground hover:bg-ground-2"
+              }`}
+            >
+              {draft.title ? (
+                <span className="text-ink">{draft.title}</span>
+              ) : (
+                <span className="text-ink-faint">What&rsquo;s happening?</span>
+              )}
+              {kbOpen && (
+                <span className="ml-0.5 inline-block h-7 w-0.5 animate-pulse bg-ink" aria-hidden />
+              )}
+            </button>
+          </Section>
+
+          <InlineRow icon={<Sun className="size-5" strokeWidth={2} />} label="All-day">
             <Toggle
               on={draft.allDay}
               onChange={(on) => patch({ allDay: on })}
               label="All-day event"
             />
-          </div>
+          </InlineRow>
 
-          <Field label="Starts">
+          <Section icon={<Clock className="size-5" strokeWidth={2} />} label="Starts">
             <div className="flex flex-col gap-3">
               <DateStepper
                 value={draft.startDate}
@@ -429,9 +518,9 @@ export function AddEventPanel({
                 />
               )}
             </div>
-          </Field>
+          </Section>
 
-          <Field label="Ends">
+          <Section icon={<CalendarDays className="size-5" strokeWidth={2} />} label="Ends">
             <div className="flex flex-col gap-3">
               <DateStepper
                 value={draft.endDate}
@@ -444,69 +533,69 @@ export function AddEventPanel({
                 />
               )}
             </div>
-          </Field>
+          </Section>
 
           {!editing && (
-          <Field label="Repeats">
-            <Segmented options={REPEAT_OPTIONS} value={draft.repeat} onChange={setRepeat} />
-            {repeatsOn && (
-              <div className="mt-3 flex flex-col gap-3 rounded-xl bg-ground px-4 py-4">
-                <Segmented
-                  options={REPEAT_END_OPTIONS}
-                  value={draft.repeatEndMode}
-                  onChange={(v) => patch({ repeatEndMode: v })}
-                />
-                {draft.repeatEndMode === "count" && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-body text-ink">
-                      {draft.repeatCount} times
-                    </span>
-                    <StepperPair
-                      label="Times"
-                      onDec={() =>
-                        patch({ repeatCount: Math.max(1, draft.repeatCount - 1) })
-                      }
-                      onInc={() => patch({ repeatCount: draft.repeatCount + 1 })}
-                    />
-                  </div>
-                )}
-                {draft.repeatEndMode === "until" && (
-                  <DateStepper
-                    value={draft.repeatUntil}
-                    onChange={(v) => patch({ repeatUntil: v })}
+            <Section icon={<Repeat className="size-5" strokeWidth={2} />} label="Repeats">
+              <Segmented options={REPEAT_OPTIONS} value={draft.repeat} onChange={setRepeat} />
+              {repeatsOn && (
+                <div className="mt-1 flex flex-col gap-3 rounded-xl bg-ground px-4 py-4">
+                  <Segmented
+                    options={REPEAT_END_OPTIONS}
+                    value={draft.repeatEndMode}
+                    onChange={(v) => patch({ repeatEndMode: v })}
                   />
-                )}
-              </div>
-            )}
-          </Field>
+                  {draft.repeatEndMode === "count" && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-body text-ink">
+                        {draft.repeatCount} times
+                      </span>
+                      <StepperPair
+                        label="Times"
+                        onDec={() =>
+                          patch({ repeatCount: Math.max(1, draft.repeatCount - 1) })
+                        }
+                        onInc={() => patch({ repeatCount: draft.repeatCount + 1 })}
+                      />
+                    </div>
+                  )}
+                  {draft.repeatEndMode === "until" && (
+                    <DateStepper
+                      value={draft.repeatUntil}
+                      onChange={(v) => patch({ repeatUntil: v })}
+                    />
+                  )}
+                </div>
+              )}
+            </Section>
           )}
 
-          <div className="flex items-center justify-between">
-            <span className="text-label font-medium text-ink-soft">Countdown</span>
+          <InlineRow icon={<Timer className="size-5" strokeWidth={2} />} label="Countdown">
             <Toggle
               on={draft.countdown}
               onChange={(on) => patch({ countdown: on })}
               label="Show a countdown"
             />
-          </div>
+          </InlineRow>
           {repeatsOn && (
-            <p className="-mt-4 text-stamp text-ink-faint">
+            <p className="-mt-3 text-stamp text-ink-faint">
               Countdown is off for repeating events — it would count to the next
               occurrence, which is a different thing.
             </p>
           )}
 
           {!editing && (
-            <Field label="Reminder">
+            <Section icon={<Bell className="size-5" strokeWidth={2} />} label="Reminder">
               <Segmented
                 options={REMINDER_OPTIONS}
                 value={draft.reminder}
                 onChange={(v) => patch({ reminder: v })}
               />
-            </Field>
+            </Section>
           )}
 
-          <Field
+          <Section
+            icon={<Users className="size-5" strokeWidth={2} />}
             label="Assign"
             hint="Family covers everyone. Tap people to make it about just them."
           >
@@ -563,7 +652,7 @@ export function AddEventPanel({
                 );
               })}
             </div>
-          </Field>
+          </Section>
         </div>
 
         {/* Footer */}
@@ -609,6 +698,19 @@ export function AddEventPanel({
             </div>
           </div>
         </div>
+
+        {/* In-app keyboard: slides up over the footer when the Title is tapped. */}
+        {kbOpen && (
+          <div className="absolute inset-x-0 bottom-0 z-20">
+            <OnScreenKeyboard
+              onInsert={(t) => setDraft((d) => reconcile({ ...d, title: d.title + t }))}
+              onBackspace={() =>
+                setDraft((d) => reconcile({ ...d, title: d.title.slice(0, -1) }))
+              }
+              onDone={() => setKbOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

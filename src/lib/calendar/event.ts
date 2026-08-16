@@ -5,6 +5,12 @@
 
 import type { CalendarEvent } from "./types";
 import { parseBoundary, startOfDay } from "./dates";
+import { EVERYONE_COLOR } from "./palette";
+
+// The sentinel filter key for the "Family" chip (Phase 2 #2). Distinct from any
+// real member key (member slugs are lowercase words), so it can share the same
+// `filter: string | null` channel as the member chips.
+export const FAMILY_FILTER_KEY = "__family__";
 
 /**
  * Whether a member (by key) is "concerned" with an event — the filter-chip
@@ -16,6 +22,17 @@ import { parseBoundary, startOfDay } from "./dates";
 export function memberConcerns(event: CalendarEvent, memberKey: string): boolean {
   if (event.memberKeys.length > 0) return event.memberKeys.includes(memberKey);
   return event.defaultMemberKey === memberKey;
+}
+
+/**
+ * Whether an event is a whole-family / shared one — the "Family" filter chip
+ * predicate (Phase 2 #2). True exactly when it resolves to the shared "everyone"
+ * treatment: an untagged event on the family calendar, or one assigned to four
+ * or more people. Reads straight off the baked band colors so the filter and the
+ * chip's fill never disagree.
+ */
+export function concernsFamily(event: CalendarEvent): boolean {
+  return event.colors.includes(EVERYONE_COLOR);
 }
 
 /**

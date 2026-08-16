@@ -6,7 +6,12 @@ import { ViewFrame } from "@/components/layout/ViewFrame";
 import { useUpstream } from "@/hooks/useUpstream";
 import { useIdleReset } from "@/hooks/useIdleReset";
 import type { CalendarEvent, CalendarPayload } from "@/lib/calendar/types";
-import { memberConcerns, soonestCountdown } from "@/lib/calendar/event";
+import {
+  memberConcerns,
+  concernsFamily,
+  soonestCountdown,
+  FAMILY_FILTER_KEY,
+} from "@/lib/calendar/event";
 import {
   addDays,
   addMonths,
@@ -15,7 +20,9 @@ import {
   toDateParam,
   monthTitle,
   weekTitle,
+  zonedNow,
 } from "@/lib/calendar/dates";
+import { useTimeZone } from "@/components/common/TimeZone";
 import { MemberChips } from "./MemberChips";
 import { CalendarControls } from "./CalendarControls";
 import { CountdownStrip } from "./CountdownStrip";
@@ -62,10 +69,11 @@ function eventSig(e: CalendarEvent): string {
 }
 
 export function CalendarView() {
+  const timeZone = useTimeZone();
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<ViewMode>("month");
-  const [anchor, setAnchor] = useState(() => new Date());
-  const [now, setNow] = useState(() => new Date());
+  const [anchor, setAnchor] = useState(() => zonedNow(timeZone));
+  const [now, setNow] = useState(() => zonedNow(timeZone));
   const [filter, setFilter] = useState<string | null>(null); // member key
   const [openDay, setOpenDay] = useState<Date | null>(null);
 
@@ -83,9 +91,9 @@ export function CalendarView() {
 
   // Keep "today" current on an always-on display so the marker moves at midnight.
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000);
+    const id = setInterval(() => setNow(zonedNow(timeZone)), 60_000);
     return () => clearInterval(id);
-  }, []);
+  }, [timeZone]);
 
   // The visible range drives the fetch; the server stays view-agnostic.
   const range = mode === "month" ? monthGridRange(anchor) : weekRange(anchor);
@@ -121,13 +129,13 @@ export function CalendarView() {
   // Return to the resting state after five idle minutes (incl. any open panels).
   useIdleReset(
     useCallback(() => {
-      setAnchor(new Date());
+      setAnchor(zonedNow(timeZone));
       setMode("month");
       setFilter(null);
       setOpenDay(null);
       setAddDate(null);
       setEditEvent(null);
-    }, []),
+    }, [timeZone]),
     { enabled: mounted },
   );
 
@@ -185,9 +193,11 @@ export function CalendarView() {
     if (changed) setPendingDeletes(next);
   }, [baseEvents, pendingDeletes]);
 
-  const filtered = filter
-    ? events.filter((e) => memberConcerns(e, filter))
-    : events;
+  const filtered = !filter
+    ? events
+    : filter === FAMILY_FILTER_KEY
+      ? events.filter((e) => concernsFamily(e))
+      : events.filter((e) => memberConcerns(e, filter));
 
   const nextCountdown = useMemo(
     () => soonestCountdown(filtered, now),
@@ -196,7 +206,7 @@ export function CalendarView() {
 
   const step = (dir: number) =>
     setAnchor((a) => (mode === "month" ? addMonths(a, dir) : addDays(a, dir * 7)));
-  const goToday = () => setAnchor(new Date());
+  const goToday = () => setAnchor(zonedNow(timeZone));
   const toggleFilter = (key: string) =>
     setFilter((cur) => (cur === key ? null : key));
 
@@ -277,15 +287,17 @@ export function CalendarView() {
           onSetMode={setMode}
         />
       }
-    >
-      <div className="flex h-full flex-col gap-4">
-        {members.length > 0 && (
+      filters={
+        members.length > 0 ? (
           <MemberChips
             members={members}
             activeMemberKey={filter}
             onToggle={toggleFilter}
           />
-        )}
+        ) : undefined
+      }
+    >
+      <div className="flex h-full flex-col gap-4">
         {nextCountdown && <CountdownStrip event={nextCountdown} now={now} />}
         <div className="min-h-0 flex-1">
           {mode === "month" ? (
@@ -294,7 +306,6 @@ export function CalendarView() {
               events={filtered}
               now={now}
               onOpenDay={setOpenDay}
-              onAddDay={openAdd}
             />
           ) : (
             <WeekView
@@ -302,7 +313,6 @@ export function CalendarView() {
               events={filtered}
               now={now}
               onOpenDay={setOpenDay}
-              onAddDay={openAdd}
             />
           )}
         </div>
@@ -312,7 +322,7 @@ export function CalendarView() {
       {canAdd && (
         <button
           type="button"
-          onClick={() => openAdd(new Date())}
+          onClick={() => openAdd(now)}
           aria-label="Add event"
           className="fixed bottom-8 right-8 z-30 flex size-16 items-center justify-center rounded-full bg-ink text-surface shadow-[0_12px_30px_-8px_rgba(43,38,32,0.55)] transition-transform active:scale-95"
         >
@@ -324,6 +334,7 @@ export function CalendarView() {
         <DayPanel
           date={openDay}
           events={filtered}
+          members={members}
           now={now}
           onClose={() => setOpenDay(null)}
           onAddDay={openAdd}

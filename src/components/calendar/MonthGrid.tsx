@@ -15,13 +15,11 @@ export function MonthGrid({
   events,
   now,
   onOpenDay,
-  onAddDay,
 }: {
   anchor: Date;
   events: CalendarEvent[];
   now: Date;
   onOpenDay: (date: Date) => void;
-  onAddDay: (date: Date) => void;
 }) {
   const days = monthMatrix(anchor);
   const anchorMonth = anchor.getMonth();
@@ -50,7 +48,6 @@ export function MonthGrid({
             inMonth={date.getMonth() === anchorMonth}
             now={now}
             onOpenDay={onOpenDay}
-            onAddDay={onAddDay}
           />
         ))}
       </div>

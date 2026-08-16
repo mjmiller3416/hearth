@@ -49,21 +49,18 @@ export function KioskGuards() {
     document.addEventListener("gesturestart", onGesture);
     document.addEventListener("gesturechange", onGesture);
 
-    // ── 4. Suppress double-tap-to-zoom ──────────────────────────────────
-    let lastTouchEnd = 0;
-    const onTouchEnd = (e: TouchEvent) => {
-      const now = Date.now();
-      if (now - lastTouchEnd < 300) e.preventDefault();
-      lastTouchEnd = now;
-    };
-    document.addEventListener("touchend", onTouchEnd, { passive: false });
+    // NOTE: we deliberately do NOT install a JS double-tap-to-zoom suppressor.
+    // A `touchend` handler that preventDefaults any tap within ~300ms of the
+    // previous one cancels the SECOND of two quick taps on *different* controls
+    // — the exact "had to tap it twice" flakiness on the wall (#8). Double-tap
+    // zoom is already killed by `touch-action: manipulation` (globals.css) plus
+    // the viewport's `maximumScale=1`, so the JS handler was pure downside.
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       document.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("gesturestart", onGesture);
       document.removeEventListener("gesturechange", onGesture);
-      document.removeEventListener("touchend", onTouchEnd);
       void sentinel?.release().catch(() => {});
     };
   }, []);

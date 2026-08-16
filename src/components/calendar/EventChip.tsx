@@ -2,9 +2,11 @@
 
 import type { CSSProperties } from "react";
 import type { CalendarEvent } from "@/lib/calendar/types";
-import { colorVar, textOn, EVERYONE_COLOR } from "@/lib/calendar/palette";
+import { colorVar, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import { eventTimeLabel, eventClockLabel } from "@/lib/calendar/dates";
 import { countdownDays } from "@/lib/calendar/event";
+import { useTimeZone } from "@/components/common/TimeZone";
+import { useTextOn } from "@/components/common/ColorProvider";
 
 // A single event chip.
 //
@@ -87,6 +89,8 @@ export function EventChip({
   /** Required to render a countdown badge; omit where "now" isn't available. */
   now?: Date;
 }) {
+  const timeZone = useTimeZone();
+  const textOn = useTextOn();
   const bands = bandsFor(event.colors);
   const solid = bands.length === 1;
 
@@ -109,7 +113,7 @@ export function EventChip({
           style={textStyle}
         >
           <span className="shrink-0 text-label font-medium tabular-nums opacity-90">
-            {eventClockLabel(event)}
+            {eventClockLabel(event, timeZone)}
           </span>
           <span className="text-body leading-tight">{event.title}</span>
           {showBadge && (
@@ -122,7 +126,7 @@ export function EventChip({
     );
   }
 
-  const time = eventTimeLabel(event);
+  const time = eventTimeLabel(event, timeZone);
   return (
     <div
       className={`relative overflow-hidden rounded-md ${textClass}`}

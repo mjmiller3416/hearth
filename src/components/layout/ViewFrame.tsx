@@ -8,22 +8,31 @@ export function ViewFrame({
   title,
   children,
   actions,
+  filters,
   isStale = false,
   lastUpdated = null,
 }: {
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  /** Optional controls that sit on the title row, between the title and actions
+   *  (e.g. the calendar's member filter chips — Phase 2 #1). Scrolls if wide. */
+  filters?: ReactNode;
   isStale?: boolean;
   lastUpdated?: number | null;
 }) {
   return (
     <section className="flex h-full flex-col px-10 pb-8 pt-7">
       <header className="mb-6 flex items-center justify-between gap-6">
-        <h1 className="font-display text-heading leading-none text-ink">
+        <h1 className="shrink-0 font-display text-heading leading-none text-ink">
           {title}
         </h1>
-        <div className="flex items-center gap-6">
+        {filters && (
+          <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
+            {filters}
+          </div>
+        )}
+        <div className="flex shrink-0 items-center gap-6">
           {actions}
           <StaleIndicator isStale={isStale} lastUpdated={lastUpdated} />
         </div>
