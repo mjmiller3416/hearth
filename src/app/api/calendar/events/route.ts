@@ -3,32 +3,39 @@ import { requireDevice } from "@/lib/auth";
 import {
   isKnownMemberKey,
   canonicalizeMemberKeys,
-  getMemberCalendarTargets,
+  getReadCalendarIds,
+  getDefaultMemberKey,
 } from "@/lib/calendar/config";
 import { buildRecurrence, resolveTimeZone } from "@/lib/calendar/recurrence";
 import {
-  insertEvent,
+  reconcileEvent,
   deleteHearthGroup,
-  dedupeHearthGroups,
-  CalendarWriteError,
-  type GoogleEventInput,
+  findHearthCopies,
+  getSourceFields,
+  type EventSpec,
 } from "@/lib/google/calendar";
-import type { CreateEventBody, RepeatRule } from "@/lib/calendar/types";
+import type {
+  CreateEventBody,
+  EditEventBody,
+  RepeatRule,
+} from "@/lib/calendar/types";
 
-// POST /api/calendar/events   — create an event (fan-out to assignees' calendars)
+// POST /api/calendar/events   — create an event
+// PUT  /api/calendar/events   — edit an event (fields and/or who's assigned)
 // DELETE /api/calendar/events — remove every copy of a Hearth event by group id
 //
-// Per-person calendars: assigning members routes one color-tagged COPY of the
-// event onto each assignee's own calendar (so it shows in their color on their
-// phone); the wall de-dupes the copies into one banded chip. Google Calendar
-// remains the system of record. Edits still happen on a phone (spec D2), but
-// Hearth now owns create AND delete of its own events so a mistake is one tap.
+// Per-person calendars: a whole-family ("Family") event is ONE event on the
+// family calendar; an event assigned to specific people is one color copy per
+// assignee's own calendar. The wall de-dupes copies into one banded chip. All
+// three verbs run through `reconcileEvent`, which brings an event to exactly the
+// calendars it should live on (patch/create/delete) — so a "Family" create and a
+// "tag Ollie into Maryann's phone event" edit are the same operation.
 //
 // SECURITY: this is the device token's WRITE surface. `requireDevice()` is the
-// FIRST statement in every handler, before any body parsing (Phase 0.1 model).
-// The client can no longer name a target calendar at all — write targets are
-// derived server-side from the member config, which is strictly safer than the
-// old allowlist (a crafted request cannot reach an arbitrary calendar).
+// FIRST statement in every handler, before any body parsing (Phase 0.1). Create
+// derives targets entirely from member config (client can't name a calendar).
+// Edit accepts a client-named {calendarId,eventId} only for a NON-Hearth event —
+// it is allowlisted against the read set and re-checked server-side.
 export const dynamic = "force-dynamic";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,6 +57,14 @@ function exclusiveEnd(dateStr: string): string {
   return `${yy}-${mm}-${dd}`;
 }
 
+/** The Google start/end objects for a wall-local date/time. */
+function startEnd(allDay: boolean, start: string, end: string, tz: string) {
+  return {
+    start: allDay ? { date: start } : { dateTime: `${start}:00`, timeZone: tz },
+    end: allDay ? { date: exclusiveEnd(end) } : { dateTime: `${end}:00`, timeZone: tz },
+  };
+}
+
 /** Validate the repeat rule shape. Returns an error message, or null if valid. */
 function validateRepeat(repeat: RepeatRule): string | null {
   if (!ALLOWED_FREQ.has(repeat.freq)) return "Unknown repeat frequency.";
@@ -67,6 +82,35 @@ function validateRepeat(repeat: RepeatRule): string | null {
   return null;
 }
 
+/** Shared field validation for create + edit. */
+function validateFields(
+  body: { title?: unknown; allDay?: unknown; start?: unknown; end?: unknown; memberKeys?: unknown },
+):
+  | { error: string }
+  | { title: string; allDay: boolean; start: string; end: string; providedKeys: string[] } {
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) return { error: "Give the event a title." };
+
+  const allDay = body.allDay === true;
+  const start = typeof body.start === "string" ? body.start : "";
+  const end = typeof body.end === "string" ? body.end : "";
+  const startOk = allDay ? DATE_ONLY.test(start) : DATE_TIME.test(start);
+  const endOk = allDay ? DATE_ONLY.test(end) : DATE_TIME.test(end);
+  if (!startOk || !endOk) return { error: "Start and end times are invalid." };
+
+  // All-day end is inclusive (last covered day); timed events must span forward.
+  const endAfterStart = allDay ? end >= start : end > start;
+  if (!endAfterStart) return { error: "The event must end after it starts." };
+
+  const providedKeys = Array.isArray(body.memberKeys) ? body.memberKeys : [];
+  for (const key of providedKeys) {
+    if (typeof key !== "string" || !isKnownMemberKey(key)) {
+      return { error: `Unknown member: ${String(key)}.` };
+    }
+  }
+  return { title, allDay, start, end, providedKeys };
+}
+
 export async function POST(req: Request) {
   const denied = await requireDevice();
   if (denied) return denied;
@@ -78,37 +122,16 @@ export async function POST(req: Request) {
     return bad("Request body must be JSON.");
   }
 
-  // ── Validation (Phase 1.5 #6) — a specific message per rule ────────────────
-  const title = typeof body.title === "string" ? body.title.trim() : "";
-  if (!title) return bad("Give the event a title.");
+  const v = validateFields(body);
+  if ("error" in v) return bad(v.error);
 
-  const allDay = body.allDay === true;
-  const startOk = allDay ? DATE_ONLY.test(body.start) : DATE_TIME.test(body.start);
-  const endOk = allDay ? DATE_ONLY.test(body.end) : DATE_TIME.test(body.end);
-  if (!startOk || !endOk) return bad("Start and end times are invalid.");
-
-  // All-day end is inclusive (the last covered day), so equal is fine; timed
-  // events must actually span forward.
-  const endAfterStart = allDay ? body.end >= body.start : body.end > body.start;
-  if (!endAfterStart) return bad("The event must end after it starts.");
-
-  const memberKeys = Array.isArray(body.memberKeys) ? body.memberKeys : [];
-  for (const key of memberKeys) {
-    if (typeof key !== "string" || !isKnownMemberKey(key)) {
-      return bad(`Unknown member: ${String(key)}.`);
-    }
-  }
-  // Canonicalize to MEMBERS order (stable band order on every copy) and require
-  // at least one assignee — the "Family" default sends all members, so an empty
-  // set only happens on a crafted request.
-  const keys = canonicalizeMemberKeys(memberKeys);
+  // Canonicalize to MEMBERS order; the "Family" default sends all members, so an
+  // empty set only happens on a crafted request.
+  const keys = canonicalizeMemberKeys(v.providedKeys);
   if (keys.length === 0) return bad("Choose at least one person.");
 
   const countdown = body.countdown === true;
   const repeat = body.repeat ?? null;
-
-  // Countdown and repeat are mutually exclusive (spec D10): counting down to a
-  // recurring event means counting to its next occurrence — a different feature.
   if (countdown && repeat) {
     return bad("An event can count down or repeat, but not both.");
   }
@@ -125,88 +148,129 @@ export async function POST(req: Request) {
     return bad("That reminder time isn't available.");
   }
 
-  // ── Build the shared event body ─────────────────────────────────────────────
   const tz = resolveTimeZone();
-  const hearthGroupId = crypto.randomUUID();
-
-  const baseInput = {
-    summary: title,
-    start: allDay
-      ? { date: body.start }
-      : { dateTime: `${body.start}:00`, timeZone: tz },
-    end: allDay
-      ? { date: exclusiveEnd(body.end) }
-      : { dateTime: `${body.end}:00`, timeZone: tz },
+  const spec: EventSpec = {
+    summary: v.title,
+    ...startEnd(v.allDay, v.start, v.end, tz),
+    recurrence: buildRecurrence(repeat, v.allDay, tz),
     reminders: {
-      useDefault: false as const,
+      useDefault: false,
       overrides:
-        reminderMinutes === null
-          ? []
-          : [{ method: "popup" as const, minutes: reminderMinutes }],
+        reminderMinutes === null ? [] : [{ method: "popup", minutes: reminderMinutes }],
     },
+    countdown,
+    memberKeys: keys,
   };
-  const basePrivate: Record<string, string> = {
-    hearthMembers: keys.join(","),
-    hearthGroupId,
-    hearthCountdown: countdown ? "1" : "0",
-  };
-  const recurrence = buildRecurrence(repeat, allDay, tz);
 
-  // ── Fan out: one color-tagged copy per assignee's calendar ──────────────────
-  const targets = getMemberCalendarTargets(keys);
-  const targetKeys = new Set(targets.map((t) => t.memberKey));
-  // Selected people with no configured calendar can't receive a copy — report
-  // them rather than failing the whole create.
-  const failures: { memberKey: string; reason: string }[] = keys
-    .filter((k) => !targetKeys.has(k))
-    .map((memberKey) => ({ memberKey, reason: "no-calendar" }));
-
-  if (targets.length === 0) {
-    return NextResponse.json(
-      { error: "None of the selected people have a calendar set up yet." },
-      { status: 502 },
-    );
-  }
-
-  const settled = await Promise.allSettled(
-    targets.map((t) => {
-      // No colorId: the copy lives on the member's own calendar, so it inherits
-      // that calendar's color on their phone (which the wall palette mirrors).
-      const input: GoogleEventInput = {
-        ...baseInput,
-        extendedProperties: { private: { ...basePrivate, hearthOwner: t.memberKey } },
-      };
-      if (recurrence) input.recurrence = recurrence;
-      return insertEvent(t.calendarId, input);
-    }),
-  );
-
-  const created = [];
-  for (let i = 0; i < settled.length; i++) {
-    const r = settled[i];
-    if (r.status === "fulfilled") {
-      created.push(r.value);
-    } else {
-      const err = r.reason;
-      console.error("[api/calendar/events] copy failed:", err);
-      const reason =
-        err instanceof CalendarWriteError && err.status === 403 ? "no-access" : "error";
-      failures.push({ memberKey: targets[i].memberKey, reason });
-    }
-  }
-
-  // If not a single copy landed, this reads as a failed create.
-  if (created.length === 0) {
+  const { event, failures } = await reconcileEvent(spec, {
+    currentCopies: [],
+    existingGroupId: null,
+    plain: false,
+    carry: null,
+  });
+  if (!event) {
     return NextResponse.json(
       { error: "Couldn't create the event on any calendar." },
       { status: 502 },
     );
   }
-
-  // Return the de-duped representative — the SAME code the poll runs, so the
-  // optimistic chip and the polled event share an id and never double up.
-  const [event] = dedupeHearthGroups(created);
   return NextResponse.json({ event, failures }, { status: 201 });
+}
+
+export async function PUT(req: Request) {
+  const denied = await requireDevice();
+  if (denied) return denied;
+
+  let body: EditEventBody;
+  try {
+    body = (await req.json()) as EditEventBody;
+  } catch {
+    return bad("Request body must be JSON.");
+  }
+
+  const v = validateFields(body);
+  if ("error" in v) return bad(v.error);
+  const countdown = body.countdown === true;
+
+  // ── Resolve the target: an existing Hearth group, or one non-Hearth event ──
+  let currentCopies: { calendarId: string; eventId: string }[];
+  let existingGroupId: string | null;
+  let carry: Awaited<ReturnType<typeof getSourceFields>> = null;
+  const rawKeys = [...v.providedKeys];
+  const target = body.target;
+
+  if (target && typeof target === "object" && "hearthGroupId" in target) {
+    const gid = typeof target.hearthGroupId === "string" ? target.hearthGroupId.trim() : "";
+    if (!gid) return bad("Missing event id.");
+    currentCopies = await findHearthCopies(gid);
+    if (currentCopies.length === 0) return bad("That event no longer exists.");
+    existingGroupId = gid;
+    carry = await getSourceFields(currentCopies[0].calendarId, currentCopies[0].eventId);
+    if (carry?.recurring) {
+      return NextResponse.json(
+        { error: "Edit repeating events on your phone." },
+        { status: 409 },
+      );
+    }
+  } else if (target && typeof target === "object" && "calendarId" in target) {
+    const calendarId = typeof target.calendarId === "string" ? target.calendarId : "";
+    const eventId = typeof target.eventId === "string" ? target.eventId : "";
+    // SECURITY: only a real calendar Hearth reads, and never a synthetic wall id.
+    if (!getReadCalendarIds().includes(calendarId) || !eventId || eventId.startsWith("hearth:")) {
+      return bad("That event can't be edited from here.");
+    }
+    const src = await getSourceFields(calendarId, eventId);
+    if (!src) return bad("That event no longer exists.");
+    if (src.recurring) {
+      return NextResponse.json(
+        { error: "Edit repeating events on your phone." },
+        { status: 409 },
+      );
+    }
+    // Adopt the owner: the person whose calendar it lives on is always on it, so
+    // the original is patched in place (never orphaned).
+    const owner = getDefaultMemberKey(calendarId);
+    if (owner) rawKeys.push(owner);
+    currentCopies = [{ calendarId, eventId }];
+    existingGroupId = null;
+    carry = src;
+  } else {
+    return bad("Missing edit target.");
+  }
+
+  const keys = canonicalizeMemberKeys(rawKeys);
+  if (keys.length === 0) return bad("Choose at least one person.");
+
+  // A non-Hearth event whose assignment is exactly its owner stays a plain,
+  // untagged personal event (no group) — editing a title mustn't "adopt" it.
+  const owner = existingGroupId
+    ? null
+    : getDefaultMemberKey(currentCopies[0].calendarId);
+  const plain = Boolean(owner) && keys.length === 1 && keys[0] === owner;
+
+  const tz = resolveTimeZone();
+  const spec: EventSpec = {
+    summary: v.title,
+    ...startEnd(v.allDay, v.start, v.end, tz),
+    // Edits never touch recurrence; reminders are carried from the source event.
+    reminders: { useDefault: false, overrides: [] },
+    countdown,
+    memberKeys: keys,
+  };
+
+  const { event, failures } = await reconcileEvent(spec, {
+    currentCopies,
+    existingGroupId,
+    plain,
+    carry,
+  });
+  if (!event) {
+    return NextResponse.json(
+      { error: "Couldn't save the event." },
+      { status: 502 },
+    );
+  }
+  return NextResponse.json({ event, failures }, { status: 200 });
 }
 
 // DELETE /api/calendar/events  — remove every copy of a Hearth event by group id.

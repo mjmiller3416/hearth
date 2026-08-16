@@ -4,10 +4,13 @@
 // server needs.
 
 import type {
+  CalendarEvent,
   CreateEventBody,
+  EditEventBody,
   RepeatFreq,
   RepeatRule,
 } from "./types";
+import { parseBoundary } from "./dates";
 
 export interface DateParts {
   y: number;
@@ -202,5 +205,81 @@ export function buildBody(
     repeat: draft.countdown ? null : buildRepeat(draft),
     countdown: draft.countdown,
     reminderMinutes: REMINDER_MINUTES[draft.reminder],
+  };
+}
+
+// ── Editing ───────────────────────────────────────────────────────────────────
+
+/**
+ * Seed a draft from an existing event, for the edit panel. Repeat/reminder are
+ * not editable from the wall so they default to "none". Assignment is prefilled
+ * from the event's tags (or its owning member for an untagged personal event),
+ * collapsing to the Family chip (`memberKeys: []`) when it's the whole household.
+ */
+export function draftFromEvent(
+  event: CalendarEvent,
+  allMemberKeys: string[],
+): EventDraft {
+  const start = parseBoundary(event.start); // local Date (date-only → local midnight)
+  const startDate = partsFromDate(start);
+  const startTime: TimeParts = { h: start.getHours(), min: start.getMinutes() };
+
+  let endDate: DateParts;
+  let endTime: TimeParts;
+  if (event.allDay) {
+    // Google's all-day end is EXCLUSIVE; the form's endDate is inclusive.
+    endDate = addDaysToParts(partsFromDate(parseBoundary(event.end)), -1);
+    endTime = addOneHour(startTime); // unused for all-day
+  } else {
+    const end = parseBoundary(event.end);
+    endDate = partsFromDate(end);
+    endTime = { h: end.getHours(), min: end.getMinutes() };
+  }
+
+  const isWholeFamily =
+    allMemberKeys.length > 0 &&
+    event.memberKeys.length === allMemberKeys.length &&
+    allMemberKeys.every((k) => event.memberKeys.includes(k));
+  let memberKeys: string[];
+  if (isWholeFamily) memberKeys = []; // Family chip
+  else if (event.memberKeys.length > 0) memberKeys = event.memberKeys;
+  else if (event.defaultMemberKey) memberKeys = [event.defaultMemberKey]; // owner
+  else memberKeys = []; // untagged family-calendar event → Family
+
+  return {
+    title: event.title,
+    allDay: event.allDay,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    repeat: "none",
+    repeatEndMode: "never",
+    repeatCount: 10,
+    repeatUntil: addDaysToParts(startDate, 30),
+    countdown: event.countdown,
+    reminder: "none",
+    memberKeys,
+  };
+}
+
+/** Shape an edited draft into the PUT body. Empty memberKeys === Family (all). */
+export function buildEditBody(
+  draft: EventDraft,
+  allMemberKeys: string[],
+  target: EditEventBody["target"],
+): EditEventBody {
+  return {
+    title: draft.title.trim(),
+    allDay: draft.allDay,
+    start: draft.allDay
+      ? dateStr(draft.startDate)
+      : dateTimeStr(draft.startDate, draft.startTime),
+    end: draft.allDay
+      ? dateStr(draft.endDate)
+      : dateTimeStr(draft.endDate, draft.endTime),
+    memberKeys: draft.memberKeys.length ? draft.memberKeys : allMemberKeys,
+    countdown: draft.countdown,
+    target,
   };
 }

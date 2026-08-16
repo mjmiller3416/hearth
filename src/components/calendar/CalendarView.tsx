@@ -40,6 +40,27 @@ import { AddEventPanel } from "./AddEventPanel";
 
 type ViewMode = "month" | "week";
 
+// A locally-created or -edited event shown over polled data until the poll
+// catches up. `supersedes` is the id of the pre-edit event to hide during the
+// round-trip (a time edit or a personal→group promotion changes the id).
+interface Overlay {
+  event: CalendarEvent;
+  supersedes: string | null;
+}
+
+// Content signature — an overlay retires once the polled copy matches it (not
+// merely when the id reappears: a title-only edit keeps the same id).
+function eventSig(e: CalendarEvent): string {
+  return [
+    e.title,
+    e.start,
+    e.end,
+    e.allDay,
+    [...e.memberKeys].sort().join(","),
+    e.countdown,
+  ].join("|");
+}
+
 export function CalendarView() {
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<ViewMode>("month");
@@ -48,10 +69,11 @@ export function CalendarView() {
   const [filter, setFilter] = useState<string | null>(null); // member key
   const [openDay, setOpenDay] = useState<Date | null>(null);
 
-  // Add Event panel + entry state.
+  // Add/Edit panel + entry state.
   const [addDate, setAddDate] = useState<Date | null>(null);
-  // Locally-created events, merged over polled data until a poll returns them.
-  const [optimistic, setOptimistic] = useState<CalendarEvent[]>([]);
+  const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
+  // Locally created/edited events, shown over polled data until the poll agrees.
+  const [overlays, setOverlays] = useState<Overlay[]>([]);
   // Groups being deleted, hidden immediately until the poll stops returning them.
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(
     () => new Set(),
@@ -104,6 +126,7 @@ export function CalendarView() {
       setFilter(null);
       setOpenDay(null);
       setAddDate(null);
+      setEditEvent(null);
     }, []),
     { enabled: mounted },
   );
@@ -112,31 +135,38 @@ export function CalendarView() {
   const configured = data?.configured ?? false;
   const baseEvents = data?.events ?? [];
 
-  // Merge locally-created events over polled data (keyed by id so a caught-up
-  // poll wins, never a duplicate — Phase 1.5 #13, #19), then hide any groups the
-  // user just deleted until the poll stops returning them.
+  // Overlay locally created/edited events on the polled data: drop any base event
+  // an overlay replaces (same id) or supersedes (the pre-edit id), add the
+  // overlays, then hide any groups the user just deleted until the poll agrees.
   const events = useMemo(() => {
-    const merged =
-      optimistic.length === 0
-        ? baseEvents
-        : (() => {
-            const ids = new Set(baseEvents.map((e) => e.id));
-            return [...baseEvents, ...optimistic.filter((e) => !ids.has(e.id))];
-          })();
+    let merged: CalendarEvent[];
+    if (overlays.length === 0) {
+      merged = baseEvents;
+    } else {
+      const hidden = new Set<string>();
+      for (const o of overlays) {
+        hidden.add(o.event.id);
+        if (o.supersedes) hidden.add(o.supersedes);
+      }
+      merged = [
+        ...baseEvents.filter((e) => !hidden.has(e.id)),
+        ...overlays.map((o) => o.event),
+      ];
+    }
     if (pendingDeletes.size === 0) return merged;
     return merged.filter(
       (e) => !(e.hearthGroupId && pendingDeletes.has(e.hearthGroupId)),
     );
-  }, [baseEvents, optimistic, pendingDeletes]);
+  }, [baseEvents, overlays, pendingDeletes]);
 
-  // Drop optimistic entries once the poll has them, so the set can't grow forever.
+  // Retire an overlay once the poll returns the same id with matching content
+  // (id alone is not enough — a title-only edit keeps the id).
   useEffect(() => {
-    if (optimistic.length === 0) return;
-    const ids = new Set(baseEvents.map((e) => e.id));
-    if (optimistic.some((e) => ids.has(e.id))) {
-      setOptimistic((prev) => prev.filter((e) => !ids.has(e.id)));
-    }
-  }, [baseEvents, optimistic]);
+    if (overlays.length === 0) return;
+    const sigById = new Map(baseEvents.map((e) => [e.id, eventSig(e)]));
+    const survivors = overlays.filter((o) => sigById.get(o.event.id) !== eventSig(o.event));
+    if (survivors.length !== overlays.length) setOverlays(survivors);
+  }, [baseEvents, overlays]);
 
   // Drop pending-delete markers once the poll no longer returns that group.
   useEffect(() => {
@@ -175,12 +205,34 @@ export function CalendarView() {
     setAddDate(date);
   }, []);
 
+  const openEdit = useCallback((event: CalendarEvent) => {
+    setOpenDay(null);
+    setEditEvent(event);
+  }, []);
+
   const handleCreated = useCallback(
     (event: CalendarEvent) => {
-      // Merge onto the wall immediately; the panel decides whether to close
-      // (it stays open to report any per-member share failures).
-      setOptimistic((prev) => [...prev.filter((e) => e.id !== event.id), event]);
+      // Show it immediately; the panel decides whether to close (it stays open to
+      // report any per-member share failures).
+      setOverlays((prev) => [
+        ...prev.filter((o) => o.event.id !== event.id),
+        { event, supersedes: null },
+      ]);
       refetch(); // reconcile against the server (which has already seeded it)
+    },
+    [refetch],
+  );
+
+  const handleEdited = useCallback(
+    (event: CalendarEvent, oldEvent: CalendarEvent) => {
+      // Show the edited event over the stale one, hiding the pre-edit identity
+      // (a time change or a personal→group promotion changes the id).
+      const supersedes = oldEvent.id === event.id ? null : oldEvent.id;
+      setOverlays((prev) => [
+        ...prev.filter((o) => o.event.id !== event.id && o.event.id !== oldEvent.id),
+        { event, supersedes },
+      ]);
+      refetch();
     },
     [refetch],
   );
@@ -190,7 +242,7 @@ export function CalendarView() {
       const gid = event.hearthGroupId;
       if (!gid) return; // only Hearth-created events are deletable from the wall
       setPendingDeletes((prev) => new Set(prev).add(gid));
-      setOptimistic((prev) => prev.filter((e) => e.hearthGroupId !== gid));
+      setOverlays((prev) => prev.filter((o) => o.event.hearthGroupId !== gid));
       // Fire-and-forget; the pending-delete marker hides it until the poll agrees.
       fetch("/api/calendar/events", {
         method: "DELETE",
@@ -275,7 +327,7 @@ export function CalendarView() {
           now={now}
           onClose={() => setOpenDay(null)}
           onAddDay={openAdd}
-          onDelete={handleDelete}
+          onEdit={openEdit}
         />
       )}
 
@@ -286,6 +338,19 @@ export function CalendarView() {
           members={members}
           onClose={() => setAddDate(null)}
           onCreated={handleCreated}
+        />
+      )}
+
+      {editEvent && (
+        <AddEventPanel
+          initialDate={now}
+          now={now}
+          members={members}
+          initialEvent={editEvent}
+          onClose={() => setEditEvent(null)}
+          onCreated={handleCreated}
+          onEdited={handleEdited}
+          onDeleted={handleDelete}
         />
       )}
     </ViewFrame>

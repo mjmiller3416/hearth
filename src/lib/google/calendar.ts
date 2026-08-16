@@ -1,7 +1,10 @@
 import type { CalendarEvent } from "@/lib/calendar/types";
 import {
+  getMembers,
   getReadCalendarIds,
   getDefaultMemberKey,
+  getFamilyCalendarId,
+  getMemberCalendarTargets,
   resolveEventColorsFor,
 } from "@/lib/calendar/config";
 import { addMonths, startOfMonth } from "@/lib/calendar/dates";
@@ -43,7 +46,7 @@ const INCREMENTAL_MIN_MS = 20_000;
 // adds extendedProperties/private, where Hearth's member tags and countdown flag
 // live (Google persists and returns these, and never shows them in its own UI).
 const FIELDS =
-  "nextPageToken,nextSyncToken,items(id,summary,start,end,status,extendedProperties/private)";
+  "nextPageToken,nextSyncToken,items(id,summary,start,end,status,recurringEventId,extendedProperties/private)";
 
 interface RawEvent {
   id: string;
@@ -51,6 +54,8 @@ interface RawEvent {
   status?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
+  /** Present on an expanded instance of a repeating event (singleEvents=true). */
+  recurringEventId?: string;
   extendedProperties?: { private?: Record<string, string> };
 }
 
@@ -138,6 +143,7 @@ export function normalize(
     memberKeys,
     hearthGroupId,
     countdown,
+    recurring: Boolean(raw.recurringEventId),
     defaultMemberKey,
     colors: resolveEventColorsFor(memberKeys, calendarId, defaultMemberKey),
   };
@@ -395,6 +401,22 @@ export interface GoogleEventInput {
   recurrence?: string[];
   reminders: { useDefault: false; overrides: { method: "popup"; minutes: number }[] };
   extendedProperties: { private: Record<string, string> };
+  /** Carried onto per-person copies from a phone-made source event (edit path). */
+  description?: string;
+  location?: string;
+}
+
+/**
+ * A partial update body for events.patch. `start`/`end` allow `null` on the
+ * unused key so an all-day↔timed switch clears the counterpart (Google merges
+ * nested objects, so a leftover `dateTime`/`date` would otherwise survive).
+ * Deliberately never carries `reminders`/`recurrence` — edits leave those intact.
+ */
+export interface EventPatch {
+  summary?: string;
+  start?: { date?: string | null; dateTime?: string | null; timeZone?: string | null };
+  end?: { date?: string | null; dateTime?: string | null; timeZone?: string | null };
+  extendedProperties?: { private: Record<string, string> };
 }
 
 /**
@@ -454,6 +476,49 @@ export async function insertEvent(
   return event;
 }
 
+/**
+ * Update one event in place (events.patch) and return it normalized. Used by the
+ * edit reconcile to keep a kept copy's fields in sync. Seeds the store like
+ * insertEvent. Trusts the caller for authorization (route handler).
+ */
+export async function patchEvent(
+  calendarId: string,
+  eventId: string,
+  patch: EventPatch,
+): Promise<CalendarEvent> {
+  if (isMockEnabled()) return mockPatch(calendarId, eventId, patch);
+
+  const url = `${CALENDAR_API}/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
+  const call = async (token: string) =>
+    fetch(url, {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(patch),
+      cache: "no-store",
+    });
+
+  let res = await call(await getAccessToken());
+  if (res.status === 401) res = await call(await getAccessToken(true));
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new CalendarWriteError(
+      `events.patch failed for ${calendarId}/${eventId} (${res.status}): ${detail}`,
+      res.status,
+    );
+  }
+
+  const raw = (await res.json()) as RawEvent;
+  const event = normalize(raw, calendarId, getDefaultMemberKey(calendarId));
+  if (!event) throw new CalendarWriteError("patched event could not be normalized", 502);
+
+  const store = stores.get(calendarId);
+  if (store) store.events.set(event.id, event);
+  return event;
+}
+
 /** Synthesize a created event for local mock mode (see insertEvent). */
 function mockInsert(calendarId: string, input: GoogleEventInput): CalendarEvent {
   const priv = input.extendedProperties.private;
@@ -473,10 +538,44 @@ function mockInsert(calendarId: string, input: GoogleEventInput): CalendarEvent 
     memberKeys,
     hearthGroupId: priv.hearthGroupId ?? null,
     countdown: priv.hearthCountdown === "1",
+    recurring: false,
     defaultMemberKey,
     colors: resolveEventColorsFor(memberKeys, calendarId, defaultMemberKey),
   };
   return event;
+}
+
+/**
+ * Synthesize a patched event for local mock mode. The reconcile always sends a
+ * FULL patch (summary + start + end + private), so we can rebuild the whole
+ * event from the patch alone.
+ */
+function mockPatch(
+  calendarId: string,
+  eventId: string,
+  patch: EventPatch,
+): CalendarEvent {
+  const priv = patch.extendedProperties?.private ?? {};
+  const memberKeys = (priv.hearthMembers ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
+  const defaultMemberKey = getDefaultMemberKey(calendarId);
+  const allDay = Boolean(patch.start?.date);
+  return {
+    id: eventId,
+    title: patch.summary ?? "",
+    start: patch.start?.date ?? patch.start?.dateTime ?? "",
+    end: patch.end?.date ?? patch.end?.dateTime ?? "",
+    allDay,
+    calendarId,
+    memberKeys,
+    hearthGroupId: priv.hearthGroupId ?? null,
+    countdown: priv.hearthCountdown === "1",
+    recurring: false,
+    defaultMemberKey,
+    colors: resolveEventColorsFor(memberKeys, calendarId, defaultMemberKey),
+  };
 }
 
 // ── Delete path (fan-out) ─────────────────────────────────────────────────────
@@ -576,4 +675,255 @@ export async function deleteHearthGroup(
   );
 
   return { deleted, failures };
+}
+
+// ── Edit path (reconcile helpers) ─────────────────────────────────────────────
+
+/** Delete one specific copy (not the whole group) and purge it from its store. */
+export async function deleteEventCopy(
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  if (isMockEnabled() || !isGoogleConfigured()) return;
+  await deleteOne(calendarId, eventId);
+  stores.get(calendarId)?.events.delete(eventId);
+}
+
+/**
+ * Every copy of a Hearth group across the read calendars, as {calendarId,
+ * eventId} pairs — the edit reconcile's "current copies". Uses the same
+ * privateExtendedProperty lookup as delete (singleEvents=false → the canonical
+ * event id per calendar). Best-effort per calendar. Empty in mock.
+ */
+export async function findHearthCopies(
+  hearthGroupId: string,
+): Promise<{ calendarId: string; eventId: string }[]> {
+  if (isMockEnabled()) {
+    // Mock has no server store, so derive the copies from the synthetic feed —
+    // enough to exercise the edit reconcile offline.
+    const now = new Date();
+    const span = 90 * 86_400_000;
+    return getMockEvents(new Date(now.getTime() - span), new Date(now.getTime() + span))
+      .filter((e) => e.hearthGroupId === hearthGroupId)
+      .map((e) => ({ calendarId: e.calendarId, eventId: e.id }));
+  }
+  if (!isGoogleConfigured()) return [];
+  const out: { calendarId: string; eventId: string }[] = [];
+  await Promise.all(
+    getReadCalendarIds().map(async (calendarId) => {
+      try {
+        const ids = await findGroupEventIds(calendarId, hearthGroupId);
+        for (const eventId of ids) out.push({ calendarId, eventId });
+      } catch (err) {
+        console.error(`[calendar] findHearthCopies failed on ${calendarId}:`, err);
+      }
+    }),
+  );
+  return out;
+}
+
+/** Fields the reconcile needs from a source event: recurrence flag + body to carry. */
+export interface SourceFields {
+  recurring: boolean;
+  description?: string;
+  location?: string;
+  reminders?: GoogleEventInput["reminders"];
+}
+
+/**
+ * Read the recurrence flag and carry-forward body (description/location/
+ * reminders) of one event via events.get. Returns null if it's gone (404/410).
+ * Null in mock (the caller then treats it as a non-recurring event with no
+ * carry-forward). Used to (a) block editing a repeating event server-side and
+ * (b) copy a phone-made event's body onto newly-created per-person copies.
+ */
+export async function getSourceFields(
+  calendarId: string,
+  eventId: string,
+): Promise<SourceFields | null> {
+  if (isMockEnabled()) return { recurring: false }; // mock events are never recurring
+  if (!isGoogleConfigured()) return null;
+
+  const url =
+    `${CALENDAR_API}/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}` +
+    `?fields=recurringEventId,recurrence,description,location,reminders`;
+  const call = async (token: string) =>
+    fetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
+
+  let res = await call(await getAccessToken());
+  if (res.status === 401) res = await call(await getAccessToken(true));
+  if (res.status === 404 || res.status === 410) return null;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new CalendarWriteError(
+      `events.get failed for ${calendarId}/${eventId} (${res.status}): ${detail}`,
+      res.status,
+    );
+  }
+
+  const raw = (await res.json()) as {
+    recurringEventId?: string;
+    recurrence?: string[];
+    description?: string;
+    location?: string;
+    reminders?: { useDefault?: boolean; overrides?: { method: "popup"; minutes: number }[] };
+  };
+  const overrides = raw.reminders?.overrides;
+  return {
+    recurring: Boolean(raw.recurringEventId) || Array.isArray(raw.recurrence),
+    description: raw.description,
+    location: raw.location,
+    reminders: overrides?.length ? { useDefault: false, overrides } : undefined,
+  };
+}
+
+// ── Reconcile (shared by create + edit) ───────────────────────────────────────
+
+/** The desired end-state of an event, calendar-agnostic. */
+export interface EventSpec {
+  summary: string;
+  start: { date?: string; dateTime?: string; timeZone?: string };
+  end: { date?: string; dateTime?: string; timeZone?: string };
+  /** Create only — edits never touch recurrence. */
+  recurrence?: string[];
+  reminders: GoogleEventInput["reminders"];
+  countdown: boolean;
+  /** Canonicalized (MEMBERS order, deduped). Non-empty (enforced upstream). */
+  memberKeys: string[];
+}
+
+export interface ReconcileTarget {
+  /** Existing Google events for this logical event (empty for a fresh create). */
+  currentCopies: { calendarId: string; eventId: string }[];
+  /** The event's existing hearthGroupId, or null (create / plain personal). */
+  existingGroupId: string | null;
+  /** Keep it a plain, untagged personal event (no group, no member tags). */
+  plain: boolean;
+  /** Body to carry onto newly-created copies (from a phone-made source event). */
+  carry: SourceFields | null;
+}
+
+export interface ReconcileResult {
+  event: CalendarEvent | null; // null ⇒ nothing landed (caller returns 502)
+  failures: { calendarId: string; memberKey?: string; reason: string }[];
+}
+
+/** A patch date object: fill the unused key with null so a mode switch clears it. */
+function patchDate(d: { date?: string; dateTime?: string; timeZone?: string }) {
+  return d.date
+    ? { date: d.date, dateTime: null, timeZone: null }
+    : { dateTime: d.dateTime ?? null, timeZone: d.timeZone ?? null, date: null };
+}
+
+/**
+ * Bring an event to `spec` across exactly the calendars it should live on:
+ *   - assignment == all members → the single family calendar (when configured);
+ *   - otherwise → one copy per assignee's calendar.
+ * Patches copies that should stay, creates the ones that are missing, and — only
+ * after at least one create/patch succeeds — deletes the ones that shouldn't
+ * exist. Best-effort: per-calendar failures are reported, never fatal, and the
+ * event is never deleted into nothing. Returns the de-duped representative.
+ * Shared by POST (create: no current copies) and PUT (edit).
+ */
+export async function reconcileEvent(
+  spec: EventSpec,
+  target: ReconcileTarget,
+): Promise<ReconcileResult> {
+  const failures: ReconcileResult["failures"] = [];
+
+  const isFamily = spec.memberKeys.length === getMembers().length;
+  const family = getFamilyCalendarId();
+  const memberTargets = getMemberCalendarTargets(spec.memberKeys);
+  const desiredCalendars =
+    isFamily && family ? [family] : memberTargets.map((t) => t.calendarId);
+
+  // Assigned people with no calendar configured — reported, not fatal.
+  if (!(isFamily && family)) {
+    const have = new Set(memberTargets.map((t) => t.memberKey));
+    for (const k of spec.memberKeys) {
+      if (!have.has(k)) failures.push({ calendarId: "", memberKey: k, reason: "no-calendar" });
+    }
+  }
+
+  // Never delete-into-nothing.
+  if (desiredCalendars.length === 0) return { event: null, failures };
+
+  const groupId = target.plain
+    ? undefined
+    : target.existingGroupId ?? crypto.randomUUID();
+
+  const privateBase: Record<string, string> = {
+    hearthCountdown: spec.countdown ? "1" : "0",
+  };
+  if (groupId) {
+    privateBase.hearthGroupId = groupId;
+    privateBase.hearthMembers = spec.memberKeys.join(",");
+  }
+
+  const currentByCalendar = new Map(
+    target.currentCopies.map((c) => [c.calendarId, c.eventId]),
+  );
+
+  // ── Phase A: patch kept copies + create missing ones (delete nothing yet). ──
+  const writes = await Promise.allSettled(
+    desiredCalendars.map((cal) => {
+      const priv = { ...privateBase };
+      if (groupId) priv.hearthOwner = getDefaultMemberKey(cal) ?? "family";
+      const existingId = currentByCalendar.get(cal);
+      if (existingId) {
+        return patchEvent(cal, existingId, {
+          summary: spec.summary,
+          start: patchDate(spec.start),
+          end: patchDate(spec.end),
+          extendedProperties: { private: priv },
+        });
+      }
+      const input: GoogleEventInput = {
+        summary: spec.summary,
+        start: spec.start,
+        end: spec.end,
+        reminders: target.carry?.reminders ?? spec.reminders,
+        extendedProperties: { private: priv },
+      };
+      if (spec.recurrence) input.recurrence = spec.recurrence;
+      if (target.carry?.description) input.description = target.carry.description;
+      if (target.carry?.location) input.location = target.carry.location;
+      return insertEvent(cal, input);
+    }),
+  );
+
+  const created: CalendarEvent[] = [];
+  writes.forEach((r, i) => {
+    if (r.status === "fulfilled") {
+      created.push(r.value);
+    } else {
+      const cal = desiredCalendars[i];
+      console.error(`[calendar] reconcile write failed on ${cal}:`, r.reason);
+      const reason =
+        r.reason instanceof CalendarWriteError && r.reason.status === 403
+          ? "no-access"
+          : "error";
+      failures.push({ calendarId: cal, memberKey: getDefaultMemberKey(cal) ?? undefined, reason });
+    }
+  });
+
+  // Never lose the event: if not one copy landed, delete nothing.
+  if (created.length === 0) return { event: null, failures };
+
+  // ── Phase B: delete copies that should no longer exist. ─────────────────────
+  const desiredSet = new Set(desiredCalendars);
+  await Promise.all(
+    target.currentCopies
+      .filter((c) => !desiredSet.has(c.calendarId))
+      .map(async (c) => {
+        try {
+          await deleteEventCopy(c.calendarId, c.eventId);
+        } catch (err) {
+          console.error(`[calendar] reconcile delete failed on ${c.calendarId}:`, err);
+          failures.push({ calendarId: c.calendarId, reason: "delete-failed" });
+        }
+      }),
+  );
+
+  return { event: dedupeHearthGroups(created)[0] ?? null, failures };
 }

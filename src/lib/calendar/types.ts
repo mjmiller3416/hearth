@@ -51,6 +51,12 @@ export interface CalendarEvent {
   /** Countdown flag, from `extendedProperties.private.hearthCountdown`. */
   countdown: boolean;
   /**
+   * True when this is an instance of a repeating event (has `recurringEventId`).
+   * The wall blocks editing repeating events (do it on a phone); delete still
+   * works (it removes the whole series).
+   */
+  recurring: boolean;
+  /**
    * The owning calendar's `defaultMemberKey` — the fallback color source for an
    * untagged event. Null when the calendar declares no default.
    */
@@ -120,4 +126,23 @@ export interface CreateEventBody {
   countdown: boolean;
   /** Minutes before start: null = none, 0 = at time of event, else N minutes. */
   reminderMinutes: number | null;
+}
+
+/**
+ * Edit contract (client → PUT /api/calendar/events). Same wall-local date/time
+ * strings as create, but NO repeat/reminder — those are created-once and edited
+ * on a phone (repeating events can't be edited from the wall at all). `target`
+ * names the event to reconcile: a Hearth event by its group id, or a non-Hearth
+ * (phone-made) event by its real calendar + event id.
+ */
+export interface EditEventBody {
+  title: string;
+  allDay: boolean;
+  /** Timed: "YYYY-MM-DDTHH:mm". All-day: "YYYY-MM-DD". Wall-local, naive. */
+  start: string;
+  /** Same forms as `start`. All-day end is INCLUSIVE (the last covered day). */
+  end: string;
+  memberKeys: string[];
+  countdown: boolean;
+  target: { hearthGroupId: string } | { calendarId: string; eventId: string };
 }

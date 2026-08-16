@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import { useEffect } from "react";
+import { Plus, X } from "lucide-react";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { eventsForDay, dayPanelTitle } from "@/lib/calendar/dates";
 import { EventChip } from "./EventChip";
@@ -11,10 +11,9 @@ import { EventChip } from "./EventChip";
 // within the panel, not the page (kiosk — nothing scrolls at the app level).
 // Dismissed by tapping outside or the close control.
 //
-// Hearth-created events (those with a hearthGroupId) carry a delete affordance:
-// a trash button that asks for a second tap to confirm — accidental-touch-proof
-// at wall distance — then removes every per-person copy at once. Events that came
-// from the family calendar or a phone have no delete here (managed on a phone).
+// Every event row is tappable to edit it (change the title/time, or tag people
+// in). Deleting lives inside that edit panel, so a stray tap here never removes
+// anything.
 
 export function DayPanel({
   date,
@@ -22,17 +21,16 @@ export function DayPanel({
   now,
   onClose,
   onAddDay,
-  onDelete,
+  onEdit,
 }: {
   date: Date;
   events: CalendarEvent[];
   now: Date;
   onClose: () => void;
   onAddDay: (date: Date) => void;
-  onDelete?: (event: CalendarEvent) => void;
+  onEdit: (event: CalendarEvent) => void;
 }) {
   const dayEvents = eventsForDay(events, date);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   // Escape closes too — harmless on a touch wall, helpful during development.
   useEffect(() => {
@@ -87,48 +85,17 @@ export function DayPanel({
               Nothing scheduled.
             </p>
           ) : (
-            dayEvents.map((ev) => {
-              const deletable = Boolean(onDelete) && ev.hearthGroupId != null;
-              const confirming = confirmingId === ev.id;
-              return (
-                <div key={ev.id} className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <EventChip event={ev} variant="list" now={now} />
-                  </div>
-                  {deletable &&
-                    (confirming ? (
-                      <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onDelete?.(ev);
-                            setConfirmingId(null);
-                          }}
-                          className="rounded-full bg-[var(--color-maryann)] px-4 py-2.5 text-label font-semibold text-white transition-opacity hover:opacity-90"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmingId(null)}
-                          className="rounded-full px-4 py-2.5 text-label font-medium text-ink-soft transition-colors hover:bg-ground-2"
-                        >
-                          Keep
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmingId(ev.id)}
-                        aria-label={`Delete ${ev.title}`}
-                        className="flex size-12 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-ground-2 hover:text-ink"
-                      >
-                        <Trash2 className="size-6" strokeWidth={2} aria-hidden />
-                      </button>
-                    ))}
-                </div>
-              );
-            })
+            dayEvents.map((ev) => (
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => onEdit(ev)}
+                aria-label={`Edit ${ev.title}`}
+                className="block w-full rounded-lg text-left transition-transform active:scale-[0.99]"
+              >
+                <EventChip event={ev} variant="list" now={now} />
+              </button>
+            ))
           )}
         </div>
       </div>

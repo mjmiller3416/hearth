@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus, Users, X } from "lucide-react";
-import type { CalendarEvent, Member } from "@/lib/calendar/types";
+import { ChevronLeft, ChevronRight, Minus, Plus, Trash2, Users, X } from "lucide-react";
+import type { CalendarEvent, EditEventBody, Member } from "@/lib/calendar/types";
 import { colorVar, textOn, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import {
   addDaysToParts,
   buildBody,
+  buildEditBody,
   dateLabel,
   defaultDraft,
+  draftFromEvent,
   reconcile,
   stepHour,
   stepMinute,
@@ -243,17 +245,29 @@ export function AddEventPanel({
   initialDate,
   now,
   members,
+  initialEvent,
   onClose,
   onCreated,
+  onEdited,
+  onDeleted,
 }: {
   initialDate: Date;
   now: Date;
   members: Member[];
+  /** When present, the panel edits this event instead of creating a new one. */
+  initialEvent?: CalendarEvent;
   onClose: () => void;
   onCreated: (event: CalendarEvent) => void;
+  onEdited?: (event: CalendarEvent, oldEvent: CalendarEvent) => void;
+  onDeleted?: (event: CalendarEvent) => void;
 }) {
+  const allKeys = members.map((m) => m.key);
+  const editing = Boolean(initialEvent);
+  const recurring = initialEvent?.recurring ?? false;
+  const deletable = Boolean(initialEvent?.hearthGroupId);
+
   const [draft, setDraft] = useState<EventDraft>(() =>
-    defaultDraft(initialDate, now),
+    initialEvent ? draftFromEvent(initialEvent, allKeys) : defaultDraft(initialDate, now),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -292,30 +306,43 @@ export function AddEventPanel({
     setSubmitting(true);
     setError(null);
     try {
+      const target: EditEventBody["target"] | null = initialEvent
+        ? initialEvent.hearthGroupId
+          ? { hearthGroupId: initialEvent.hearthGroupId }
+          : { calendarId: initialEvent.calendarId, eventId: initialEvent.id }
+        : null;
+
       const res = await fetch("/api/calendar/events", {
-        method: "POST",
+        method: editing ? "PUT" : "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildBody(draft, members.map((m) => m.key))),
+        body: JSON.stringify(
+          editing && target
+            ? buildEditBody(draft, allKeys, target)
+            : buildBody(draft, allKeys),
+        ),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(json?.error ?? "Couldn't create the event.");
+        setError(json?.error ?? (editing ? "Couldn't save the event." : "Couldn't create the event."));
         setSubmitting(false); // keep the panel open, fields intact
         return;
       }
-      // Merge the event onto the wall immediately either way.
-      onCreated(json.event as CalendarEvent);
 
-      const failures: { memberKey: string }[] = Array.isArray(json.failures)
+      // Merge the event onto the wall immediately either way.
+      const event = json.event as CalendarEvent;
+      if (editing && initialEvent) onEdited?.(event, initialEvent);
+      else onCreated(event);
+
+      const failures: { memberKey?: string }[] = Array.isArray(json.failures)
         ? json.failures
         : [];
       if (failures.length > 0) {
-        // Created, but some people's calendars aren't shared with Hearth yet —
-        // keep the panel open so the note is seen. The wall still shows the event.
+        // Saved, but some people's calendars aren't shared with Hearth yet — keep
+        // the panel open so the note is seen. The wall still shows the event.
         const names = failures
-          .map((f) => members.find((m) => m.key === f.memberKey)?.name ?? f.memberKey)
+          .map((f) => members.find((m) => m.key === f.memberKey)?.name ?? f.memberKey ?? "someone")
           .join(", ");
-        setError(`Added, but ${names} can't see it yet — share their calendar with Hearth.`);
+        setError(`Saved, but ${names} can't see it yet — share their calendar with Hearth.`);
         setSubmitting(false);
         return;
       }
@@ -326,7 +353,12 @@ export function AddEventPanel({
     }
   }
 
-  const canSubmit = !submitting && draft.title.trim().length > 0;
+  function remove() {
+    if (initialEvent && onDeleted) onDeleted(initialEvent);
+    onClose();
+  }
+
+  const canSubmit = !submitting && !recurring && draft.title.trim().length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="presentation">
@@ -340,11 +372,13 @@ export function AddEventPanel({
         }`}
         role="dialog"
         aria-modal="true"
-        aria-label="Add event"
+        aria-label={editing ? "Edit event" : "Add event"}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hairline px-8 py-5">
-          <h2 className="font-display text-display text-ink">New event</h2>
+          <h2 className="font-display text-display text-ink">
+            {editing ? "Edit event" : "New event"}
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -357,6 +391,12 @@ export function AddEventPanel({
 
         {/* Body */}
         <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto px-8 py-6">
+          {recurring && (
+            <p className="rounded-xl bg-ground px-4 py-3 text-body text-ink-soft">
+              This is a repeating event — edit it on your phone. You can delete it
+              here.
+            </p>
+          )}
           <Field label="Title">
             <input
               type="text"
@@ -406,6 +446,7 @@ export function AddEventPanel({
             </div>
           </Field>
 
+          {!editing && (
           <Field label="Repeats">
             <Segmented options={REPEAT_OPTIONS} value={draft.repeat} onChange={setRepeat} />
             {repeatsOn && (
@@ -438,6 +479,7 @@ export function AddEventPanel({
               </div>
             )}
           </Field>
+          )}
 
           <div className="flex items-center justify-between">
             <span className="text-label font-medium text-ink-soft">Countdown</span>
@@ -454,13 +496,15 @@ export function AddEventPanel({
             </p>
           )}
 
-          <Field label="Reminder">
-            <Segmented
-              options={REMINDER_OPTIONS}
-              value={draft.reminder}
-              onChange={(v) => patch({ reminder: v })}
-            />
-          </Field>
+          {!editing && (
+            <Field label="Reminder">
+              <Segmented
+                options={REMINDER_OPTIONS}
+                value={draft.reminder}
+                onChange={(v) => patch({ reminder: v })}
+              />
+            </Field>
+          )}
 
           <Field
             label="Assign"
@@ -529,22 +573,40 @@ export function AddEventPanel({
               {error}
             </p>
           )}
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full px-6 py-3 text-label font-medium text-ink-soft transition-colors hover:bg-ground-2"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!canSubmit}
-              className="rounded-full bg-ink px-8 py-3 text-label font-semibold text-surface transition-opacity disabled:opacity-40"
-            >
-              {submitting ? "Adding…" : "Add event"}
-            </button>
+          <div className="flex items-center gap-3">
+            {deletable && (
+              <button
+                type="button"
+                onClick={remove}
+                aria-label="Delete event"
+                className="flex size-12 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-ground-2 hover:text-[var(--color-maryann)]"
+              >
+                <Trash2 className="size-6" strokeWidth={2} aria-hidden />
+              </button>
+            )}
+            <div className="flex flex-1 items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full px-6 py-3 text-label font-medium text-ink-soft transition-colors hover:bg-ground-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSubmit}
+                className="rounded-full bg-ink px-8 py-3 text-label font-semibold text-surface transition-opacity disabled:opacity-40"
+              >
+                {submitting
+                  ? editing
+                    ? "Saving…"
+                    : "Adding…"
+                  : editing
+                    ? "Save"
+                    : "Add event"}
+              </button>
+            </div>
           </div>
         </div>
       </div>

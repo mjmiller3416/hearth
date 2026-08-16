@@ -95,6 +95,7 @@ export function getMockEvents(start: Date, end: Date): CalendarEvent[] {
       memberKeys,
       hearthGroupId,
       countdown,
+      recurring: false,
       defaultMemberKey,
       colors: resolveEventColorsFor(memberKeys, calId, defaultMemberKey),
     });
