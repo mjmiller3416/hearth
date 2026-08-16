@@ -40,6 +40,14 @@ export interface CalendarEvent {
    * every Phase 1 event, which keeps rendering by owning-calendar color.
    */
   memberKeys: string[];
+  /**
+   * The fan-out group id (`extendedProperties.private.hearthGroupId`), shared by
+   * every per-person copy of a Hearth-created event. Null for events Hearth did
+   * not create (Family-calendar entries, legacy events). The read path collapses
+   * all copies sharing a groupId+occurrence into one banded chip, and the delete
+   * path removes every copy by this id.
+   */
+  hearthGroupId: string | null;
   /** Countdown flag, from `extendedProperties.private.hearthCountdown`. */
   countdown: boolean;
   /**
@@ -58,32 +66,30 @@ export interface CalendarEvent {
 
 /**
  * One taggable person. The canonical list comes from the `MEMBERS` env var
- * (Phase 1.5). `key` is the stable slug written into `hearthMembers`; `color`
- * is a palette slug resolving to `var(--color-<color>)`.
+ * (Phase 1.5, extended for per-person calendars). `key` is the stable slug
+ * written into `hearthMembers`; `color` is a palette slug resolving to
+ * `var(--color-<color>)`; `calendarId` is the member's own Google calendar,
+ * where their color-tagged copy of an assigned event is written.
  */
 export interface Member {
   key: string;
   name: string;
   color: string;
-}
-
-/** A writable calendar, for the Add Event picker. */
-export interface PickerCalendar {
-  id: string;
-  label: string;
+  /** The member's own Google calendar id (their assigned events' write target). */
+  calendarId?: string;
+  /** Optional override for the Google per-event colorId used on their copies. */
+  googleColorId?: string;
 }
 
 /**
  * The GET /api/calendar payload. `configured` is false when Google credentials
- * or CALENDAR_MAP are absent — the view then renders a calm empty grid rather
- * than an error, honoring the failure contract (spec §6.2).
+ * or the read-calendar config are absent — the view then renders a calm empty
+ * grid rather than an error, honoring the failure contract (spec §6.2).
  */
 export interface CalendarPayload {
   events: CalendarEvent[];
   /** The taggable people, for filter chips and the Assign control. */
   members: Member[];
-  /** Writable calendars, for the Add Event calendar picker. */
-  calendars: PickerCalendar[];
   configured: boolean;
 }
 
@@ -105,7 +111,6 @@ export interface RepeatRule {
 }
 
 export interface CreateEventBody {
-  calendarId: string;
   title: string;
   allDay: boolean;
   /** Timed: "YYYY-MM-DDTHH:mm". All-day: "YYYY-MM-DD". Wall-local, naive. */

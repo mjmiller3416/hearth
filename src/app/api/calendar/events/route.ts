@@ -1,26 +1,34 @@
 import { NextResponse } from "next/server";
 import { requireDevice } from "@/lib/auth";
-import { isKnownMemberKey, isWritableCalendar } from "@/lib/calendar/config";
+import {
+  isKnownMemberKey,
+  canonicalizeMemberKeys,
+  getMemberCalendarTargets,
+} from "@/lib/calendar/config";
 import { buildRecurrence, resolveTimeZone } from "@/lib/calendar/recurrence";
 import {
   insertEvent,
+  deleteHearthGroup,
+  dedupeHearthGroups,
   CalendarWriteError,
   type GoogleEventInput,
 } from "@/lib/google/calendar";
 import type { CreateEventBody, RepeatRule } from "@/lib/calendar/types";
 
-// POST /api/calendar/events — create ONE event (Phase 1.5 #6, #7, #8).
+// POST /api/calendar/events   — create an event (fan-out to assignees' calendars)
+// DELETE /api/calendar/events — remove every copy of a Hearth event by group id
 //
-// Create only: Hearth never edits or deletes (spec D2 amended — corrections
-// happen on a phone). Google Calendar remains the system of record; this writes
-// to it and returns the created event normalized through the exact read path, so
-// the client receives a shape identical to a polled event.
+// Per-person calendars: assigning members routes one color-tagged COPY of the
+// event onto each assignee's own calendar (so it shows in their color on their
+// phone); the wall de-dupes the copies into one banded chip. Google Calendar
+// remains the system of record. Edits still happen on a phone (spec D2), but
+// Hearth now owns create AND delete of its own events so a mistake is one tap.
 //
-// SECURITY: this is the device token's first WRITE surface. `requireDevice()` is
-// the FIRST statement, before any body parsing (Phase 0.1 model). The target
-// calendar is allowlisted against CALENDAR_MAP `writable:true` — a crafted
-// request must not be able to write to an arbitrary calendar the household
-// account merely has access to.
+// SECURITY: this is the device token's WRITE surface. `requireDevice()` is the
+// FIRST statement in every handler, before any body parsing (Phase 0.1 model).
+// The client can no longer name a target calendar at all — write targets are
+// derived server-side from the member config, which is strictly safer than the
+// old allowlist (a crafted request cannot reach an arbitrary calendar).
 export const dynamic = "force-dynamic";
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
@@ -74,15 +82,6 @@ export async function POST(req: Request) {
   const title = typeof body.title === "string" ? body.title.trim() : "";
   if (!title) return bad("Give the event a title.");
 
-  if (typeof body.calendarId !== "string" || !body.calendarId) {
-    return bad("Choose a calendar.");
-  }
-  // Allowlist: present in CALENDAR_MAP AND writable. Rejects both an unknown
-  // calendar and a known-but-read-only one (Phase 1.5 acceptance #12).
-  if (!isWritableCalendar(body.calendarId)) {
-    return bad("That calendar can't be written to from here.");
-  }
-
   const allDay = body.allDay === true;
   const startOk = allDay ? DATE_ONLY.test(body.start) : DATE_TIME.test(body.start);
   const endOk = allDay ? DATE_ONLY.test(body.end) : DATE_TIME.test(body.end);
@@ -99,6 +98,11 @@ export async function POST(req: Request) {
       return bad(`Unknown member: ${String(key)}.`);
     }
   }
+  // Canonicalize to MEMBERS order (stable band order on every copy) and require
+  // at least one assignee — the "Family" default sends all members, so an empty
+  // set only happens on a crafted request.
+  const keys = canonicalizeMemberKeys(memberKeys);
+  if (keys.length === 0) return bad("Choose at least one person.");
 
   const countdown = body.countdown === true;
   const repeat = body.repeat ?? null;
@@ -121,10 +125,11 @@ export async function POST(req: Request) {
     return bad("That reminder time isn't available.");
   }
 
-  // ── Build the Google event (Phase 1.5 #7) ──────────────────────────────────
+  // ── Build the shared event body ─────────────────────────────────────────────
   const tz = resolveTimeZone();
+  const hearthGroupId = crypto.randomUUID();
 
-  const input: GoogleEventInput = {
+  const baseInput = {
     summary: title,
     start: allDay
       ? { date: body.start }
@@ -133,40 +138,97 @@ export async function POST(req: Request) {
       ? { date: exclusiveEnd(body.end) }
       : { dateTime: `${body.end}:00`, timeZone: tz },
     reminders: {
-      useDefault: false,
+      useDefault: false as const,
       overrides:
         reminderMinutes === null
           ? []
-          : [{ method: "popup", minutes: reminderMinutes }],
-    },
-    extendedProperties: {
-      private: {
-        hearthMembers: memberKeys.join(","),
-        hearthCountdown: countdown ? "1" : "0",
-      },
+          : [{ method: "popup" as const, minutes: reminderMinutes }],
     },
   };
-
+  const basePrivate: Record<string, string> = {
+    hearthMembers: keys.join(","),
+    hearthGroupId,
+    hearthCountdown: countdown ? "1" : "0",
+  };
   const recurrence = buildRecurrence(repeat, allDay, tz);
-  if (recurrence) input.recurrence = recurrence;
 
-  // ── Write, and return the event normalized like a read (Phase 1.5 #8) ──────
-  try {
-    const event = await insertEvent(body.calendarId, input);
-    return NextResponse.json({ event }, { status: 201 });
-  } catch (err) {
-    if (err instanceof CalendarWriteError) {
-      // A 403 here means the household account has only read access on a
-      // calendar the operator marked writable — a sharing misconfig, not a
-      // client error. Surface a calm, specific message; keep the panel open.
-      console.error("[api/calendar/events] write failed:", err);
-      const msg =
-        err.status === 403
-          ? "Hearth doesn't have permission to write to that calendar yet."
-          : "Couldn't create the event. Please try again.";
-      return NextResponse.json({ error: msg }, { status: 502 });
+  // ── Fan out: one color-tagged copy per assignee's calendar ──────────────────
+  const targets = getMemberCalendarTargets(keys);
+  const targetKeys = new Set(targets.map((t) => t.memberKey));
+  // Selected people with no configured calendar can't receive a copy — report
+  // them rather than failing the whole create.
+  const failures: { memberKey: string; reason: string }[] = keys
+    .filter((k) => !targetKeys.has(k))
+    .map((memberKey) => ({ memberKey, reason: "no-calendar" }));
+
+  if (targets.length === 0) {
+    return NextResponse.json(
+      { error: "None of the selected people have a calendar set up yet." },
+      { status: 502 },
+    );
+  }
+
+  const settled = await Promise.allSettled(
+    targets.map((t) => {
+      const input: GoogleEventInput = {
+        ...baseInput,
+        colorId: t.colorId,
+        extendedProperties: { private: { ...basePrivate, hearthOwner: t.memberKey } },
+      };
+      if (recurrence) input.recurrence = recurrence;
+      return insertEvent(t.calendarId, input);
+    }),
+  );
+
+  const created = [];
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i];
+    if (r.status === "fulfilled") {
+      created.push(r.value);
+    } else {
+      const err = r.reason;
+      console.error("[api/calendar/events] copy failed:", err);
+      const reason =
+        err instanceof CalendarWriteError && err.status === 403 ? "no-access" : "error";
+      failures.push({ memberKey: targets[i].memberKey, reason });
     }
-    console.error("[api/calendar/events] unexpected error:", err);
-    return NextResponse.json({ error: "Couldn't create the event." }, { status: 502 });
+  }
+
+  // If not a single copy landed, this reads as a failed create.
+  if (created.length === 0) {
+    return NextResponse.json(
+      { error: "Couldn't create the event on any calendar." },
+      { status: 502 },
+    );
+  }
+
+  // Return the de-duped representative — the SAME code the poll runs, so the
+  // optimistic chip and the polled event share an id and never double up.
+  const [event] = dedupeHearthGroups(created);
+  return NextResponse.json({ event, failures }, { status: 201 });
+}
+
+// DELETE /api/calendar/events  — remove every copy of a Hearth event by group id.
+export async function DELETE(req: Request) {
+  const denied = await requireDevice();
+  if (denied) return denied;
+
+  let body: { hearthGroupId?: unknown };
+  try {
+    body = (await req.json()) as { hearthGroupId?: unknown };
+  } catch {
+    return bad("Request body must be JSON.");
+  }
+
+  const hearthGroupId =
+    typeof body.hearthGroupId === "string" ? body.hearthGroupId.trim() : "";
+  if (!hearthGroupId) return bad("Missing event id.");
+
+  try {
+    const { deleted, failures } = await deleteHearthGroup(hearthGroupId);
+    return NextResponse.json({ ok: failures.length === 0, deleted, failures });
+  } catch (err) {
+    console.error("[api/calendar/events] delete failed:", err);
+    return NextResponse.json({ error: "Couldn't delete the event." }, { status: 502 });
   }
 }

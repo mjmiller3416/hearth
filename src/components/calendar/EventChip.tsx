@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { CalendarEvent } from "@/lib/calendar/types";
 import { colorVar, textOn, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import { eventTimeLabel, eventClockLabel } from "@/lib/calendar/dates";
@@ -14,11 +15,13 @@ import { countdownDays } from "@/lib/calendar/event";
 // rather than four slivers (Phase 1.5 #5). The whole grid can still be parsed by
 // color before a word is read (spec §7).
 //
-// Bands are painted as a layer of equal-width flex strips behind the text, each
-// filled with `background-color: var(--color-…)`. (Deliberately NOT a
-// linear-gradient: a custom property inside a gradient value is rejected by the
-// CSS parser in the target engine, so the fill would silently vanish. Adjacent
-// solid strips give the same crisp edges and always render.)
+// Bands are painted as stacked full-size layers, each `background-color:
+// var(--color-…)`, with the internal seams cut on a slight diagonal via
+// `clip-path` (band 0 fills; each later band is clipped to a slanted slice and
+// painted over). The diagonal reads more like a shared event than a vertical
+// hard stop. (Deliberately NOT a linear-gradient: a custom property inside a
+// gradient value is rejected by the CSS parser in the target engine, so the fill
+// would silently vanish. `clip-path` + solid backgrounds always render.)
 //
 // Countdown events carry a small day-count badge (Phase 1.5 #21).
 //
@@ -35,17 +38,34 @@ function bandsFor(colors: string[]): string[] {
   return colors;
 }
 
-/** The color strips behind the chip content. Hard edges, no blend. */
+// How far each internal seam leans (px) from top to bottom — the diagonal split.
+const SEAM_SKEW_PX = 7;
+
+/** The color bands behind the chip content: diagonal hard edges, no blend. */
 function BandLayer({ bands }: { bands: string[] }) {
+  // One color → a plain solid fill (no seam to slant).
+  if (bands.length <= 1) {
+    return (
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: `var(${colorVar(bands[0] ?? EVERYONE_COLOR)})` }}
+        aria-hidden
+      />
+    );
+  }
+  const n = bands.length;
   return (
-    <div className="absolute inset-0 flex" aria-hidden>
-      {bands.map((c, i) => (
-        <div
-          key={`${c}-${i}`}
-          className="h-full flex-1"
-          style={{ backgroundColor: `var(${colorVar(c)})` }}
-        />
-      ))}
+    <div className="absolute inset-0" aria-hidden>
+      {bands.map((c, i) => {
+        const seam = (i / n) * 100; // this band's left seam, as a % of width
+        const style: CSSProperties = { backgroundColor: `var(${colorVar(c)})` };
+        // Band 0 fills the whole chip; each later band is clipped to a slanted
+        // slice from its seam to the right edge and painted over the previous.
+        if (i > 0) {
+          style.clipPath = `polygon(calc(${seam}% + ${SEAM_SKEW_PX}px) 0, 100% 0, 100% 100%, calc(${seam}% - ${SEAM_SKEW_PX}px) 100%)`;
+        }
+        return <div key={`${c}-${i}`} className="absolute inset-0" style={style} />;
+      })}
     </div>
   );
 }
@@ -110,7 +130,7 @@ export function EventChip({
     >
       <BandLayer bands={bands} />
       <div
-        className="relative flex items-baseline gap-1.5 truncate px-2 py-0.5 text-label leading-tight"
+        className="relative flex items-baseline gap-1.5 truncate px-2 py-px text-label leading-tight"
         style={textStyle}
       >
         {time && (

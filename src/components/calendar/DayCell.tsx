@@ -75,8 +75,8 @@ export function DayCell({
           the add button — except the events button, which re-enables them. The
           bottom padding is deliberately larger than the top: a full cell (three
           chips or "+N more") would otherwise butt right up against the rule. */}
-      <div className="pointer-events-none relative z-10 flex min-h-0 flex-col gap-0.5 px-1.5 pb-2 pt-1">
-        <div className="mb-0.5 flex items-center">
+      <div className="pointer-events-none relative z-10 flex min-h-0 flex-col gap-0.5 px-1.5 pb-1 pt-1">
+        <div className="flex items-center">
           {today ? (
             <span className="flex size-8 items-center justify-center rounded-full bg-ink font-display text-[1.35rem] leading-none text-surface">
               {date.getDate()}

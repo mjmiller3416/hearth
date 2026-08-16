@@ -50,9 +50,12 @@ export function CalendarView() {
 
   // Add Event panel + entry state.
   const [addDate, setAddDate] = useState<Date | null>(null);
-  const [mruCalendarId, setMruCalendarId] = useState<string | null>(null);
   // Locally-created events, merged over polled data until a poll returns them.
   const [optimistic, setOptimistic] = useState<CalendarEvent[]>([]);
+  // Groups being deleted, hidden immediately until the poll stops returning them.
+  const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => setMounted(true), []);
 
@@ -106,16 +109,25 @@ export function CalendarView() {
   );
 
   const members = data?.members ?? [];
-  const calendars = data?.calendars ?? [];
+  const configured = data?.configured ?? false;
   const baseEvents = data?.events ?? [];
 
-  // Merge locally-created events over polled data, keyed by id so a poll that
-  // has caught up wins and there is never a duplicate chip (Phase 1.5 #13, #19).
+  // Merge locally-created events over polled data (keyed by id so a caught-up
+  // poll wins, never a duplicate — Phase 1.5 #13, #19), then hide any groups the
+  // user just deleted until the poll stops returning them.
   const events = useMemo(() => {
-    if (optimistic.length === 0) return baseEvents;
-    const ids = new Set(baseEvents.map((e) => e.id));
-    return [...baseEvents, ...optimistic.filter((e) => !ids.has(e.id))];
-  }, [baseEvents, optimistic]);
+    const merged =
+      optimistic.length === 0
+        ? baseEvents
+        : (() => {
+            const ids = new Set(baseEvents.map((e) => e.id));
+            return [...baseEvents, ...optimistic.filter((e) => !ids.has(e.id))];
+          })();
+    if (pendingDeletes.size === 0) return merged;
+    return merged.filter(
+      (e) => !(e.hearthGroupId && pendingDeletes.has(e.hearthGroupId)),
+    );
+  }, [baseEvents, optimistic, pendingDeletes]);
 
   // Drop optimistic entries once the poll has them, so the set can't grow forever.
   useEffect(() => {
@@ -125,6 +137,23 @@ export function CalendarView() {
       setOptimistic((prev) => prev.filter((e) => !ids.has(e.id)));
     }
   }, [baseEvents, optimistic]);
+
+  // Drop pending-delete markers once the poll no longer returns that group.
+  useEffect(() => {
+    if (pendingDeletes.size === 0) return;
+    const liveGids = new Set(
+      baseEvents.map((e) => e.hearthGroupId).filter((g): g is string => Boolean(g)),
+    );
+    let changed = false;
+    const next = new Set(pendingDeletes);
+    for (const gid of pendingDeletes) {
+      if (!liveGids.has(gid)) {
+        next.delete(gid);
+        changed = true;
+      }
+    }
+    if (changed) setPendingDeletes(next);
+  }, [baseEvents, pendingDeletes]);
 
   const filtered = filter
     ? events.filter((e) => memberConcerns(e, filter))
@@ -147,11 +176,29 @@ export function CalendarView() {
   }, []);
 
   const handleCreated = useCallback(
-    (event: CalendarEvent, calendarId: string) => {
+    (event: CalendarEvent) => {
+      // Merge onto the wall immediately; the panel decides whether to close
+      // (it stays open to report any per-member share failures).
       setOptimistic((prev) => [...prev.filter((e) => e.id !== event.id), event]);
-      setMruCalendarId(calendarId);
-      setAddDate(null);
       refetch(); // reconcile against the server (which has already seeded it)
+    },
+    [refetch],
+  );
+
+  const handleDelete = useCallback(
+    (event: CalendarEvent) => {
+      const gid = event.hearthGroupId;
+      if (!gid) return; // only Hearth-created events are deletable from the wall
+      setPendingDeletes((prev) => new Set(prev).add(gid));
+      setOptimistic((prev) => prev.filter((e) => e.hearthGroupId !== gid));
+      // Fire-and-forget; the pending-delete marker hides it until the poll agrees.
+      fetch("/api/calendar/events", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ hearthGroupId: gid }),
+      })
+        .catch(() => {})
+        .finally(() => refetch());
     },
     [refetch],
   );
@@ -162,7 +209,7 @@ export function CalendarView() {
   }
 
   const title = mode === "month" ? monthTitle(anchor) : weekTitle(anchor);
-  const canAdd = calendars.length > 0;
+  const canAdd = configured && members.length > 0;
 
   return (
     <ViewFrame
@@ -228,6 +275,7 @@ export function CalendarView() {
           now={now}
           onClose={() => setOpenDay(null)}
           onAddDay={openAdd}
+          onDelete={handleDelete}
         />
       )}
 
@@ -236,8 +284,6 @@ export function CalendarView() {
           initialDate={addDate}
           now={now}
           members={members}
-          calendars={calendars}
-          defaultCalendarId={mruCalendarId}
           onClose={() => setAddDate(null)}
           onCreated={handleCreated}
         />

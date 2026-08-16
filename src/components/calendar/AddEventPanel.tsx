@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus, X } from "lucide-react";
-import type { CalendarEvent, Member, PickerCalendar } from "@/lib/calendar/types";
-import { colorVar, textOn } from "@/lib/calendar/palette";
+import { ChevronLeft, ChevronRight, Minus, Plus, Users, X } from "lucide-react";
+import type { CalendarEvent, Member } from "@/lib/calendar/types";
+import { colorVar, textOn, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import {
   addDaysToParts,
   buildBody,
@@ -23,7 +23,11 @@ import {
 
 // The Add Event panel (Phase 1.5 #9–#20). Slides in from the right over the
 // grid, ordered to match the Skylight interface the household already knows:
-// Title, All-day, Start, End, Repeats, Countdown, Reminder, Assign, Calendar.
+// Title, All-day, Start, End, Repeats, Countdown, Reminder, Assign.
+//
+// There is no calendar picker: assignment decides where copies are written.
+// "Assign" defaults to a Family chip (everyone); tapping individuals narrows it
+// to just them, and clearing everyone falls back to Family.
 //
 // Every control is sized for a hand reaching up to a wall (spec §6.1); date and
 // time use compact steppers, not scroll wheels (Phase 1.5 #18). The RRULE is
@@ -239,21 +243,17 @@ export function AddEventPanel({
   initialDate,
   now,
   members,
-  calendars,
-  defaultCalendarId,
   onClose,
   onCreated,
 }: {
   initialDate: Date;
   now: Date;
   members: Member[];
-  calendars: PickerCalendar[];
-  defaultCalendarId: string | null;
   onClose: () => void;
-  onCreated: (event: CalendarEvent, calendarId: string) => void;
+  onCreated: (event: CalendarEvent) => void;
 }) {
   const [draft, setDraft] = useState<EventDraft>(() =>
-    defaultDraft(initialDate, now, defaultCalendarId ?? calendars[0]?.id ?? ""),
+    defaultDraft(initialDate, now),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -295,7 +295,7 @@ export function AddEventPanel({
       const res = await fetch("/api/calendar/events", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(buildBody(draft)),
+        body: JSON.stringify(buildBody(draft, members.map((m) => m.key))),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -303,7 +303,23 @@ export function AddEventPanel({
         setSubmitting(false); // keep the panel open, fields intact
         return;
       }
-      onCreated(json.event as CalendarEvent, draft.calendarId);
+      // Merge the event onto the wall immediately either way.
+      onCreated(json.event as CalendarEvent);
+
+      const failures: { memberKey: string }[] = Array.isArray(json.failures)
+        ? json.failures
+        : [];
+      if (failures.length > 0) {
+        // Created, but some people's calendars aren't shared with Hearth yet —
+        // keep the panel open so the note is seen. The wall still shows the event.
+        const names = failures
+          .map((f) => members.find((m) => m.key === f.memberKey)?.name ?? f.memberKey)
+          .join(", ");
+        setError(`Added, but ${names} can't see it yet — share their calendar with Hearth.`);
+        setSubmitting(false);
+        return;
+      }
+      onClose();
     } catch {
       setError("Couldn't reach the server. Try again.");
       setSubmitting(false);
@@ -446,8 +462,33 @@ export function AddEventPanel({
             />
           </Field>
 
-          <Field label="Assign" hint="Tap the people this event is about. None is fine.">
+          <Field
+            label="Assign"
+            hint="Family covers everyone. Tap people to make it about just them."
+          >
             <div className="flex flex-wrap gap-3">
+              {/* Family = everyone, and the default (selected when no individual
+                  is chosen). Tapping a person clears it; clearing everyone
+                  restores it — so an event is never assigned to no one. */}
+              <button
+                type="button"
+                aria-pressed={draft.memberKeys.length === 0}
+                aria-label="Family"
+                onClick={() => patch({ memberKeys: [] })}
+                className="flex flex-col items-center gap-1.5"
+              >
+                <span
+                  className={`flex size-14 items-center justify-center rounded-full text-white transition-all ${
+                    draft.memberKeys.length === 0
+                      ? "ring-4 ring-ink ring-offset-2 ring-offset-surface"
+                      : "opacity-55"
+                  }`}
+                  style={{ backgroundColor: `var(${colorVar(EVERYONE_COLOR)})` }}
+                >
+                  <Users className="size-7" strokeWidth={2.5} aria-hidden />
+                </span>
+                <span className="text-stamp text-ink-soft">Family</span>
+              </button>
               {members.map((m) => {
                 const selected = draft.memberKeys.includes(m.key);
                 const initials = m.name.slice(0, 1).toUpperCase();
@@ -474,29 +515,6 @@ export function AddEventPanel({
                       {initials}
                     </span>
                     <span className="text-stamp text-ink-soft">{m.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-
-          <Field label="Calendar" hint="Which Google calendar this syncs to.">
-            <div className="flex flex-wrap gap-2">
-              {calendars.map((c) => {
-                const active = c.id === draft.calendarId;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => patch({ calendarId: c.id })}
-                    className={`rounded-full px-5 py-2.5 text-label font-medium transition-colors ${
-                      active
-                        ? "bg-ink text-surface"
-                        : "bg-ground text-ink-soft hover:bg-ground-2"
-                    }`}
-                  >
-                    {c.label}
                   </button>
                 );
               })}

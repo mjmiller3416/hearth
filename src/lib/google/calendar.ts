@@ -1,7 +1,8 @@
 import type { CalendarEvent } from "@/lib/calendar/types";
 import {
   getReadCalendarIds,
-  getCalendarConfig,
+  getDefaultMemberKey,
+  getFamilyCalendarId,
   resolveEventColors,
 } from "@/lib/calendar/config";
 import { addMonths, startOfMonth } from "@/lib/calendar/dates";
@@ -85,7 +86,7 @@ export class CalendarWriteError extends Error {
 function readCalendars(): ReadCalendar[] {
   return getReadCalendarIds().map((id) => ({
     id,
-    defaultMemberKey: getCalendarConfig(id)?.defaultMemberKey ?? null,
+    defaultMemberKey: getDefaultMemberKey(id),
   }));
 }
 
@@ -126,6 +127,7 @@ export function normalize(
   const priv = raw.extendedProperties?.private;
   const memberKeys = parseMemberKeys(priv);
   const countdown = priv?.hearthCountdown === "1";
+  const hearthGroupId = priv?.hearthGroupId ?? null;
 
   const partial = {
     memberKeys,
@@ -140,6 +142,7 @@ export function normalize(
     allDay: Boolean(raw.start?.date && !raw.start?.dateTime),
     calendarId,
     memberKeys,
+    hearthGroupId,
     countdown,
     defaultMemberKey,
     colors: resolveEventColors(partial),
@@ -292,6 +295,57 @@ async function directFetch(
   return out;
 }
 
+// ── Presentation: coordinated-only filter + fan-out de-dup ───────────────────
+// The wall shows only "coordinated" events: Hearth-created events (which carry a
+// hearthGroupId) and anything on the shared family calendar. A member's own
+// private, non-Hearth events on their calendar stay off the wall. Then every
+// per-person copy of a Hearth event is collapsed back into ONE banded chip.
+
+// An occurrence key that is stable across copies and across insert-vs-list, and
+// independent of how Google formats the UTC offset: the instant in epoch-ms for
+// timed events, the bare date for all-day. Recurring instances differ by start
+// so they stay separate; the N copies of one occurrence share it so they merge.
+function occToken(ev: CalendarEvent): string {
+  return ev.allDay ? ev.start : String(new Date(ev.start).getTime());
+}
+
+// One representative for a group of copies. Colors/title are identical across
+// copies (same canonical hearthMembers), so any copy renders the same chip; pick
+// deterministically. The id is a STABLE synthetic derived from the group so the
+// POST response (built by running this same de-dup over the inserted copies) and
+// the later poll produce the same id — the optimistic merge matches by construction.
+function representative(copies: CalendarEvent[]): CalendarEvent {
+  const chosen = [...copies].sort((a, b) => a.calendarId.localeCompare(b.calendarId))[0];
+  return { ...chosen, id: `hearth:${chosen.hearthGroupId}:${occToken(chosen)}` };
+}
+
+/** Collapse fan-out copies (same hearthGroupId + occurrence) into one event. */
+export function dedupeHearthGroups(events: CalendarEvent[]): CalendarEvent[] {
+  const groups = new Map<string, CalendarEvent[]>();
+  const out: CalendarEvent[] = [];
+  for (const ev of events) {
+    if (!ev.hearthGroupId) {
+      out.push(ev); // family/legacy events pass through untouched
+      continue;
+    }
+    const key = `${ev.hearthGroupId}::${occToken(ev)}`;
+    const bucket = groups.get(key);
+    if (bucket) bucket.push(ev);
+    else groups.set(key, [ev]);
+  }
+  for (const copies of groups.values()) out.push(representative(copies));
+  return out;
+}
+
+/** The wall-ready view: keep only coordinated events, then de-dup fan-out copies. */
+function presentEvents(events: CalendarEvent[]): CalendarEvent[] {
+  const familyId = getFamilyCalendarId();
+  const coordinated = events.filter(
+    (ev) => ev.hearthGroupId !== null || ev.calendarId === familyId,
+  );
+  return dedupeHearthGroups(coordinated);
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 function overlaps(ev: CalendarEvent, start: Date, end: Date): boolean {
   const s = new Date(ev.start).getTime();
@@ -300,14 +354,16 @@ function overlaps(ev: CalendarEvent, start: Date, end: Date): boolean {
 }
 
 /**
- * Every event overlapping [start, end) across all mapped calendars, normalized
- * and de-duplicated by id. Serves from the synced store when the range sits
- * inside the rolling window; otherwise does a direct fetch for that range.
- * Returns [] (never throws) when Google isn't configured yet — the view then
- * renders a calm empty grid.
+ * Every wall-ready event overlapping [start, end): fetched across all read
+ * calendars, filtered to coordinated events, and with fan-out copies collapsed
+ * into one banded chip each (see `presentEvents`). Serves from the synced store
+ * when the range sits inside the rolling window; otherwise does a direct fetch.
+ * Both the mock and the real feed flow through the SAME presentation step so the
+ * local wall exercises the exact filter + de-dup. Returns [] (never throws) when
+ * Google isn't configured yet — the view then renders a calm empty grid.
  */
 export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
-  if (isMockEnabled()) return getMockEvents(start, end);
+  if (isMockEnabled()) return presentEvents(getMockEvents(start, end));
   if (!isGoogleConfigured()) return [];
 
   const calendars = readCalendars();
@@ -336,7 +392,7 @@ export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]
     }),
   );
 
-  return perCalendar.flat();
+  return presentEvents(perCalendar.flat());
 }
 
 // ── Write path (Phase 1.5) ───────────────────────────────────────────────────
@@ -348,6 +404,13 @@ export interface GoogleEventInput {
   recurrence?: string[];
   reminders: { useDefault: false; overrides: { method: "popup"; minutes: number }[] };
   extendedProperties: { private: Record<string, string> };
+  /**
+   * Google per-event colorId (1–11). Set per copy in the fan-out so an assigned
+   * event shows in that member's color on their own phone. A property of the
+   * event resource — the calendar owner sees it. Not requested on reads (the
+   * wall derives bands from memberKeys), so it stays off `FIELDS`.
+   */
+  colorId?: string;
 }
 
 /**
@@ -394,7 +457,7 @@ export async function insertEvent(
   }
 
   const raw = (await res.json()) as RawEvent;
-  const defaultMemberKey = getCalendarConfig(calendarId)?.defaultMemberKey ?? null;
+  const defaultMemberKey = getDefaultMemberKey(calendarId);
   const event = normalize(raw, calendarId, defaultMemberKey);
   if (!event) {
     throw new CalendarWriteError("created event could not be normalized", 502);
@@ -414,19 +477,119 @@ function mockInsert(calendarId: string, input: GoogleEventInput): CalendarEvent 
     .split(",")
     .map((k) => k.trim())
     .filter(Boolean);
-  const defaultMemberKey = getCalendarConfig(calendarId)?.defaultMemberKey ?? null;
+  const defaultMemberKey = getDefaultMemberKey(calendarId);
   const allDay = Boolean(input.start.date);
   const event: CalendarEvent = {
-    id: `mock-created-${Date.now()}`,
+    id: `mock-created-${calendarId}-${Date.now()}`,
     title: input.summary,
     start: input.start.date ?? input.start.dateTime ?? "",
     end: input.end.date ?? input.end.dateTime ?? "",
     allDay,
     calendarId,
     memberKeys,
+    hearthGroupId: priv.hearthGroupId ?? null,
     countdown: priv.hearthCountdown === "1",
     defaultMemberKey,
     colors: resolveEventColors({ memberKeys, defaultMemberKey }),
   };
   return event;
+}
+
+// ── Delete path (fan-out) ─────────────────────────────────────────────────────
+// Removing a Hearth event means removing every per-person copy. Copies are found
+// by querying each read calendar for the shared hearthGroupId private property —
+// robust regardless of in-memory store state, and independent of the synthetic
+// wall id. `singleEvents=false` returns a recurring event's single canonical
+// parent, so deleting it removes the whole series in one call.
+
+/** The Google event ids on `calendarId` that belong to a hearthGroupId. */
+async function findGroupEventIds(
+  calendarId: string,
+  hearthGroupId: string,
+): Promise<string[]> {
+  const base = new URLSearchParams({
+    singleEvents: "false",
+    showDeleted: "false",
+    maxResults: String(PAGE_SIZE),
+    privateExtendedProperty: `hearthGroupId=${hearthGroupId}`,
+    fields: "nextPageToken,items(id,status)",
+  });
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams(base);
+    if (pageToken) params.set("pageToken", pageToken);
+    const page = await fetchPage(calendarId, params);
+    for (const raw of page.items ?? []) {
+      if (raw.status === "cancelled") continue;
+      ids.push(raw.id);
+    }
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+  return ids;
+}
+
+/** Delete one event; a 404/410 (already gone) is treated as success (idempotent). */
+async function deleteOne(calendarId: string, eventId: string): Promise<void> {
+  const url = `${CALENDAR_API}/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
+  const call = async (token: string) =>
+    fetch(url, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+
+  let res = await call(await getAccessToken());
+  if (res.status === 401) res = await call(await getAccessToken(true));
+  if (res.status === 404 || res.status === 410) return;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new CalendarWriteError(
+      `events.delete failed for ${calendarId}/${eventId} (${res.status}): ${detail}`,
+      res.status,
+    );
+  }
+}
+
+/**
+ * Remove every per-person copy of a Hearth-created event across all read
+ * calendars, by its shared hearthGroupId. Best-effort: a calendar that fails is
+ * reported (not fatal), so a partial share still deletes what it can. Also purges
+ * matching entries from the in-memory stores so an immediate poll doesn't briefly
+ * resurrect the event. Mock mode is a no-op success (nothing lives server-side).
+ */
+export async function deleteHearthGroup(
+  hearthGroupId: string,
+): Promise<{ deleted: number; failures: { calendarId: string; status: number }[] }> {
+  if (isMockEnabled() || !isGoogleConfigured()) return { deleted: 0, failures: [] };
+
+  const failures: { calendarId: string; status: number }[] = [];
+  let deleted = 0;
+
+  await Promise.all(
+    getReadCalendarIds().map(async (calendarId) => {
+      try {
+        const ids = await findGroupEventIds(calendarId, hearthGroupId);
+        for (const eventId of ids) {
+          await deleteOne(calendarId, eventId);
+          deleted++;
+        }
+      } catch (err) {
+        const status = err instanceof CalendarWriteError ? err.status : 500;
+        console.error(`[calendar] delete failed on ${calendarId}:`, err);
+        failures.push({ calendarId, status });
+      } finally {
+        // Purge any stored copies for this group (covers recurring instances,
+        // whose ids differ from the deleted parent) so the store can't re-serve it.
+        const store = stores.get(calendarId);
+        if (store) {
+          for (const [id, ev] of store.events) {
+            if (ev.hearthGroupId === hearthGroupId) store.events.delete(id);
+          }
+        }
+      }
+    }),
+  );
+
+  return { deleted, failures };
 }

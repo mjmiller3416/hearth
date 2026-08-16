@@ -36,8 +36,8 @@ export interface EventDraft {
   repeatUntil: DateParts;
   countdown: boolean;
   reminder: ReminderChoice;
+  /** Assigned members. Empty means "Family" — expanded to all members on submit. */
   memberKeys: string[];
-  calendarId: string;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -105,11 +105,7 @@ export function addOneHour(t: TimeParts): TimeParts {
  * next upcoming hour when that day is today, running one hour. Nobody should
  * have to set four fields to log a 3pm appointment.
  */
-export function defaultDraft(
-  day: Date,
-  now: Date,
-  calendarId: string,
-): EventDraft {
+export function defaultDraft(day: Date, now: Date): EventDraft {
   const startDate = partsFromDate(day);
   const isToday =
     day.getFullYear() === now.getFullYear() &&
@@ -133,8 +129,7 @@ export function defaultDraft(
     repeatUntil: addDaysToParts(startDate, 30),
     countdown: false,
     reminder: "none",
-    memberKeys: [],
-    calendarId,
+    memberKeys: [], // empty === "Family" (default)
   };
 }
 
@@ -183,10 +178,16 @@ function buildRepeat(draft: EventDraft): RepeatRule | null {
   return { freq, end: { mode: "never" } };
 }
 
-/** Shape the draft into the POST body the server expects. */
-export function buildBody(draft: EventDraft): CreateEventBody {
+/**
+ * Shape the draft into the POST body the server expects. An empty `memberKeys`
+ * means "Family" and expands to every member (`allMemberKeys`); the server
+ * re-canonicalizes, so tap order here doesn't matter.
+ */
+export function buildBody(
+  draft: EventDraft,
+  allMemberKeys: string[],
+): CreateEventBody {
   return {
-    calendarId: draft.calendarId,
     title: draft.title.trim(),
     allDay: draft.allDay,
     start: draft.allDay
@@ -195,7 +196,7 @@ export function buildBody(draft: EventDraft): CreateEventBody {
     end: draft.allDay
       ? dateStr(draft.endDate)
       : dateTimeStr(draft.endDate, draft.endTime),
-    memberKeys: draft.memberKeys,
+    memberKeys: draft.memberKeys.length ? draft.memberKeys : allMemberKeys,
     // Countdown and repeat are mutually exclusive; the UI enforces it, and this
     // guards the payload regardless of stale state.
     repeat: draft.countdown ? null : buildRepeat(draft),
