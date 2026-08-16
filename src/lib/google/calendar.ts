@@ -2,8 +2,7 @@ import type { CalendarEvent } from "@/lib/calendar/types";
 import {
   getReadCalendarIds,
   getDefaultMemberKey,
-  getFamilyCalendarId,
-  resolveEventColors,
+  resolveEventColorsFor,
 } from "@/lib/calendar/config";
 import { addMonths, startOfMonth } from "@/lib/calendar/dates";
 import { getAccessToken, isGoogleConfigured } from "./token";
@@ -129,11 +128,6 @@ export function normalize(
   const countdown = priv?.hearthCountdown === "1";
   const hearthGroupId = priv?.hearthGroupId ?? null;
 
-  const partial = {
-    memberKeys,
-    defaultMemberKey,
-  };
-
   return {
     id: raw.id,
     title: raw.summary?.trim() || "Busy",
@@ -145,7 +139,7 @@ export function normalize(
     hearthGroupId,
     countdown,
     defaultMemberKey,
-    colors: resolveEventColors(partial),
+    colors: resolveEventColorsFor(memberKeys, calendarId, defaultMemberKey),
   };
 }
 
@@ -295,11 +289,12 @@ async function directFetch(
   return out;
 }
 
-// ── Presentation: coordinated-only filter + fan-out de-dup ───────────────────
-// The wall shows only "coordinated" events: Hearth-created events (which carry a
-// hearthGroupId) and anything on the shared family calendar. A member's own
-// private, non-Hearth events on their calendar stay off the wall. Then every
-// per-person copy of a Hearth event is collapsed back into ONE banded chip.
+// ── Presentation: fan-out de-dup ─────────────────────────────────────────────
+// The wall shows every event across the read calendars — a member's own events
+// render in their color (owning-calendar default), family-calendar events read
+// orange, and each per-person copy of a Hearth event is collapsed back into ONE
+// banded chip. (Earlier this filtered to "coordinated only"; the household
+// creates most events from their phones, so the wall now shows those too.)
 
 // An occurrence key that is stable across copies and across insert-vs-list, and
 // independent of how Google formats the UTC offset: the instant in epoch-ms for
@@ -337,13 +332,9 @@ export function dedupeHearthGroups(events: CalendarEvent[]): CalendarEvent[] {
   return out;
 }
 
-/** The wall-ready view: keep only coordinated events, then de-dup fan-out copies. */
+/** The wall-ready view: de-dup fan-out copies into one banded chip each. */
 function presentEvents(events: CalendarEvent[]): CalendarEvent[] {
-  const familyId = getFamilyCalendarId();
-  const coordinated = events.filter(
-    (ev) => ev.hearthGroupId !== null || ev.calendarId === familyId,
-  );
-  return dedupeHearthGroups(coordinated);
+  return dedupeHearthGroups(events);
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -404,13 +395,6 @@ export interface GoogleEventInput {
   recurrence?: string[];
   reminders: { useDefault: false; overrides: { method: "popup"; minutes: number }[] };
   extendedProperties: { private: Record<string, string> };
-  /**
-   * Google per-event colorId (1–11). Set per copy in the fan-out so an assigned
-   * event shows in that member's color on their own phone. A property of the
-   * event resource — the calendar owner sees it. Not requested on reads (the
-   * wall derives bands from memberKeys), so it stays off `FIELDS`.
-   */
-  colorId?: string;
 }
 
 /**
@@ -490,7 +474,7 @@ function mockInsert(calendarId: string, input: GoogleEventInput): CalendarEvent 
     hearthGroupId: priv.hearthGroupId ?? null,
     countdown: priv.hearthCountdown === "1",
     defaultMemberKey,
-    colors: resolveEventColors({ memberKeys, defaultMemberKey }),
+    colors: resolveEventColorsFor(memberKeys, calendarId, defaultMemberKey),
   };
   return event;
 }

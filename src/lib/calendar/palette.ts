@@ -22,12 +22,12 @@ export function colorVar(color: string): string {
   return `--color-${color}`;
 }
 
-// Amber is light enough that white text on a solid fill fails a distance
-// legibility check; it takes dark ink instead. The other three (coral, green,
-// blue) are dark enough for white. The untagged "neutral" fill is a light warm
-// gray and also takes dark ink; the "everyone" fill (4+ tagged members) is a
-// warm slate that takes white. Unknown keys fall back to light text.
-const DARK_TEXT_COLORS = new Set(["ollie", NEUTRAL_COLOR]);
+// Light fills fail a white-text distance-legibility check, so they take dark ink
+// instead: Lincoln's avocado green and the "everyone"/family orange are bright
+// enough to need it, as is the light "neutral" fallback. The darker, more
+// saturated fills (Maryann raspberry, Mitchell teal, Ollie blue) take white.
+// Unknown keys fall back to light text.
+const DARK_TEXT_COLORS = new Set(["lincoln", EVERYONE_COLOR, NEUTRAL_COLOR]);
 
 /** Whether a solid fill of this color should carry light or dark text. */
 export function textOn(color: string): "light" | "dark" {

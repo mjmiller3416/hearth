@@ -1,5 +1,5 @@
 import type { CalendarEvent, Member } from "./types";
-import { NEUTRAL_COLOR } from "./palette";
+import { NEUTRAL_COLOR, EVERYONE_COLOR } from "./palette";
 
 // Hearth's people-and-calendars configuration (Phase 1.5, reworked for
 // per-person calendars). Server-side only — it reads environment variables and
@@ -28,19 +28,11 @@ import { NEUTRAL_COLOR } from "./palette";
 // config is an operator error: log once and degrade to empty so the wall stays
 // calm (spec §6.2), never crash.
 
-// ── Google per-event colors ──────────────────────────────────────────────────
-// A Google event carries one colorId (1–11); it is a property of the event
-// RESOURCE, so the calendar's owner sees it. Each member's copy is written with
-// their color, so an assigned event shows in their color on their own phone.
-// These four are the most distinct hues matching the member palette; unknown
-// slugs fall back to Graphite. (See globals.css for the wall-side hex values.)
-const COLOR_ID_BY_SLUG: Record<string, string> = {
-  mitchell: "10", // Basil (green)
-  maryann: "11", // Tomato (red)
-  lincoln: "9", // Blueberry (blue)
-  ollie: "5", // Banana (amber)
-};
-const FALLBACK_COLOR_ID = "8"; // Graphite
+// Note on colors: each member's fan-out copy is written to their OWN calendar,
+// so it inherits that calendar's color natively on their phone (matching the
+// wall, whose member colors mirror the same Google colors). Hearth therefore
+// does NOT set a per-event colorId — forcing one would fight the color the
+// person chose in Google.
 
 // ── MEMBERS ─────────────────────────────────────────────────────────────────
 let membersCache: Member[] | null = null;
@@ -76,7 +68,6 @@ export function getMembers(): Member[] {
       name?: string;
       color?: string;
       calendarId?: string;
-      googleColorId?: string;
     }>;
     membersCache = parsed
       .filter((m): m is {
@@ -84,14 +75,12 @@ export function getMembers(): Member[] {
         name?: string;
         color?: string;
         calendarId?: string;
-        googleColorId?: string;
       } => Boolean(m.key))
       .map((m) => ({
         key: m.key,
         name: m.name ?? m.key,
         color: m.color ?? m.key,
         calendarId: m.calendarId,
-        googleColorId: m.googleColorId,
       }));
   } catch (err) {
     if (!membersWarned) {
@@ -196,19 +185,13 @@ export function canonicalizeMemberKeys(keys: string[]): string[] {
 export interface MemberCalendarTarget {
   memberKey: string;
   calendarId: string;
-  colorId: string;
-}
-
-/** The Google per-event colorId for a member's copies. */
-export function memberColorId(member: Member): string {
-  return member.googleColorId ?? COLOR_ID_BY_SLUG[member.color] ?? FALLBACK_COLOR_ID;
 }
 
 /**
  * The fan-out targets for a set of assigned members: each member that has a
- * configured calendar, in canonical order, with their write calendar and color.
- * Members without a `calendarId` are omitted — the caller reports them as a
- * per-member failure rather than failing the whole create.
+ * configured calendar, in canonical order, with their write calendar. Members
+ * without a `calendarId` are omitted — the caller reports them as a per-member
+ * failure rather than failing the whole create.
  */
 export function getMemberCalendarTargets(keys: string[]): MemberCalendarTarget[] {
   const byKey = membersByKey();
@@ -216,7 +199,7 @@ export function getMemberCalendarTargets(keys: string[]): MemberCalendarTarget[]
   for (const key of canonicalizeMemberKeys(keys)) {
     const m = byKey.get(key);
     if (!m?.calendarId) continue;
-    targets.push({ memberKey: m.key, calendarId: m.calendarId, colorId: memberColorId(m) });
+    targets.push({ memberKey: m.key, calendarId: m.calendarId });
   }
   return targets;
 }
@@ -248,4 +231,21 @@ export function resolveEventColors(
     if (color) return [color];
   }
   return [NEUTRAL_COLOR];
+}
+
+/**
+ * Like `resolveEventColors`, but aware of which calendar the event lives on: an
+ * untagged event on the shared family calendar reads as a whole-family (orange)
+ * chip rather than the neutral fallback. Used by both the real read path and the
+ * mock so the wall colors are identical.
+ */
+export function resolveEventColorsFor(
+  memberKeys: string[],
+  calendarId: string,
+  defaultMemberKey: string | null,
+): string[] {
+  if (memberKeys.length === 0 && calendarId === getFamilyCalendarId()) {
+    return [EVERYONE_COLOR];
+  }
+  return resolveEventColors({ memberKeys, defaultMemberKey });
 }

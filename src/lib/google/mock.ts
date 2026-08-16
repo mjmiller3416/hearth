@@ -4,7 +4,7 @@ import {
   getReadCalendarIds,
   getDefaultMemberKey,
   getFamilyCalendarId,
-  resolveEventColors,
+  resolveEventColorsFor,
 } from "@/lib/calendar/config";
 
 // Synthetic events for LOCAL development only. Building the full month grid,
@@ -96,7 +96,7 @@ export function getMockEvents(start: Date, end: Date): CalendarEvent[] {
       hearthGroupId,
       countdown,
       defaultMemberKey,
-      colors: resolveEventColors({ memberKeys, defaultMemberKey }),
+      colors: resolveEventColorsFor(memberKeys, calId, defaultMemberKey),
     });
   };
 

@@ -77,8 +77,6 @@ export interface Member {
   color: string;
   /** The member's own Google calendar id (their assigned events' write target). */
   calendarId?: string;
-  /** Optional override for the Google per-event colorId used on their copies. */
-  googleColorId?: string;
 }
 
 /**

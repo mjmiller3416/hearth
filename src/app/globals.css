@@ -61,16 +61,21 @@
    to green by spec D3; retune the others' hex here (the single source).
    ============================================================================ */
 :root {
-  --color-mitchell: #3f8f5b; /* green — locked by spec D3 */
-  --color-maryann: #c4573f; /* coral */
-  --color-lincoln: #3a6ea5; /* blue */
-  --color-ollie: #c98a1e; /* amber */
+  /* Member colors mirror each person's OWN Google Calendar color, so an event
+     reads the same on the wall as on their phone (sampled from the household's
+     calendar list). This overrides the earlier spec-D3 "Mitchell = green": his
+     work calendar is teal, so the wall follows the source of truth. */
+  --color-mitchell: #30b0b0; /* teal — info@endurance-decking.com */
+  --color-maryann: #d81b60; /* raspberry — mmaryannr@gmail.com */
+  --color-lincoln: #7cb342; /* avocado green — ljmiller2389@gmail.com */
+  --color-ollie: #039be5; /* blue — obashmiller@gmail.com */
 
   /* Chip fills for events that name no single person (Phase 1.5). Neutral =
-     untagged with no owning-calendar default; everyone = four or more tagged
-     members, one defined treatment rather than four slivers. Both stay quiet. */
+     untagged with no owning-calendar default (rare fallback); everyone = the
+     whole family (a 4+ tagged event, or an event on the Miller Family calendar),
+     matching that calendar's orange rather than four slivers. */
   --color-neutral: #c9bfa8; /* light warm gray — takes dark ink */
-  --color-everyone: #7d7461; /* warm slate — takes white */
+  --color-everyone: #f09300; /* Miller Family orange — takes dark ink */
 }
 
 /* ============================================================================

@@ -170,9 +170,10 @@ export async function POST(req: Request) {
 
   const settled = await Promise.allSettled(
     targets.map((t) => {
+      // No colorId: the copy lives on the member's own calendar, so it inherits
+      // that calendar's color on their phone (which the wall palette mirrors).
       const input: GoogleEventInput = {
         ...baseInput,
-        colorId: t.colorId,
         extendedProperties: { private: { ...basePrivate, hearthOwner: t.memberKey } },
       };
       if (recurrence) input.recurrence = recurrence;
