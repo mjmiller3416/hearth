@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 // Fit-to-viewport stage.
 //
@@ -10,11 +10,19 @@ import { useEffect, useState, type ReactNode } from "react";
 // that decision explicitly rules out — the whole fixed canvas is scaled
 // uniformly to fit whatever window it is shown in:
 //
-//   * On the real wall (1920×1080) the scale is exactly 1 — pixel-crisp, the
-//     design as drawn.
-//   * In a dev browser, or on any other panel, the canvas scales down (or up)
-//     to fit, so nothing is ever cut off and the aspect ratio is preserved
-//     (letterboxed in the warm ground color).
+//   * On a 16:9 viewport (the wall at 1920×1080, or a 1280×720 WebView, or a
+//     maximized browser) the canvas fills it edge to edge.
+//   * On any other aspect it scales to fit and letterboxes in the warm ground
+//     color, so nothing is ever cut off.
+//
+// We measure the real fitted box with a ResizeObserver rather than reading
+// `window.innerWidth/innerHeight` once on mount. Some WebViews (this Skylight
+// among them) report a too-short viewport height for the first frame or two
+// after boot — immersive/system-UI insets settle a beat late — and never fire a
+// `resize` the old code could catch, which left the canvas scaled down and
+// letterboxed on the sides forever. The observer re-fires the moment the box
+// settles; the extra rAF + timeouts are a belt-and-suspenders for viewports
+// that settle without triggering the observer at all.
 //
 // `position: fixed` descendants (the FAB, the Add and Day panels) resolve
 // against this transformed box, so they cover and scale with the canvas exactly
@@ -24,26 +32,43 @@ const STAGE_W = 1920;
 const STAGE_H = 1080;
 
 export function Stage({ children }: { children: ReactNode }) {
+  const hostRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const compute = () => {
-      setScale(Math.min(window.innerWidth / STAGE_W, window.innerHeight / STAGE_H));
-      setReady(true);
+    const host = hostRef.current;
+    if (!host) return;
+
+    const measure = () => {
+      const w = host.clientWidth;
+      const h = host.clientHeight;
+      if (w > 0 && h > 0) {
+        setScale(Math.min(w / STAGE_W, h / STAGE_H));
+        setReady(true);
+      }
     };
-    compute();
-    window.addEventListener("resize", compute);
-    // Some devices settle their viewport a beat after orientation/chrome changes.
-    window.addEventListener("orientationchange", compute);
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(host);
+
+    // Catch late viewport settles that don't reach the observer at mount.
+    const raf = requestAnimationFrame(measure);
+    const timers = [200, 600, 1200].map((ms) => window.setTimeout(measure, ms));
+
     return () => {
-      window.removeEventListener("resize", compute);
-      window.removeEventListener("orientationchange", compute);
+      observer.disconnect();
+      cancelAnimationFrame(raf);
+      timers.forEach(clearTimeout);
     };
   }, []);
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center overflow-hidden bg-ground">
+    <div
+      ref={hostRef}
+      className="fixed inset-0 flex items-center justify-center overflow-hidden bg-ground"
+    >
       <div
         style={{
           width: STAGE_W,
