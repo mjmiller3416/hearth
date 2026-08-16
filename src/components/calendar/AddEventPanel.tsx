@@ -5,6 +5,7 @@ import {
   Bell,
   CalendarDays,
   CalendarPlus,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -101,7 +102,7 @@ function Section({
   hint?: string;
 }) {
   return (
-    <section className="flex flex-col gap-3 border-t border-hairline pt-6 first:border-t-0 first:pt-0">
+    <section className="flex flex-col gap-3 border-t border-hairline pt-5 first:border-t-0 first:pt-0">
       <div className="flex items-center gap-2.5 text-ink-soft">
         <span className="text-ink-faint" aria-hidden>
           {icon}
@@ -125,7 +126,7 @@ function InlineRow({
   children: ReactNode;
 }) {
   return (
-    <section className="flex items-center justify-between gap-4 border-t border-hairline pt-6">
+    <section className="flex items-center justify-between gap-4 border-t border-hairline pt-5">
       <div className="flex items-center gap-2.5 text-ink-soft">
         <span className="text-ink-faint" aria-hidden>
           {icon}
@@ -185,7 +186,71 @@ function StepperPair({
   );
 }
 
-function DateStepper({
+// ── Compact date/time (Phase 2 #7) ────────────────────────────────────────────
+// Starts/Ends read as compact value PILLS (date beside time); tapping a pill
+// reveals a small stepper right beneath it. Far denser than the old always-open
+// stacked steppers, matching the interface the household asked for.
+
+/** A small round stepper button for the compact date/time editors. */
+function MiniStep({
+  onClick,
+  label,
+  children,
+}: {
+  onClick: () => void;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-ink shadow-[0_1px_0_var(--color-hairline-strong)] transition-colors hover:bg-ground-2 active:scale-95"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** A tappable field showing a value; opens its editor when tapped. */
+function FieldPill({
+  active,
+  onClick,
+  icon,
+  children,
+  className = "",
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={active}
+      onClick={onClick}
+      className={`flex min-w-0 items-center gap-2 rounded-xl px-4 py-3 text-body transition-colors ${
+        active ? "bg-ground-2 text-ink ring-2 ring-ink/15" : "bg-ground text-ink hover:bg-ground-2"
+      } ${className}`}
+    >
+      <span className="shrink-0 text-ink-faint" aria-hidden>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-left">{children}</span>
+      <ChevronDown
+        className={`size-5 shrink-0 text-ink-faint transition-transform ${active ? "rotate-180" : ""}`}
+        strokeWidth={2}
+        aria-hidden
+      />
+    </button>
+  );
+}
+
+/** Compact date stepper: ‹ value ›. */
+function DateEditor({
   value,
   onChange,
 }: {
@@ -193,23 +258,20 @@ function DateStepper({
   onChange: (v: DateParts) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <RoundButton onClick={() => onChange(addDaysToParts(value, -1))} label="Previous day">
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-ground/70 px-2 py-2">
+      <MiniStep onClick={() => onChange(addDaysToParts(value, -1))} label="Previous day">
         <ChevronLeft className="size-6" strokeWidth={2.5} aria-hidden />
-      </RoundButton>
-      <span className="min-w-[10rem] flex-1 whitespace-nowrap text-center text-body text-ink">
-        {dateLabel(value)}
-      </span>
-      <RoundButton onClick={() => onChange(addDaysToParts(value, 1))} label="Next day">
+      </MiniStep>
+      <span className="whitespace-nowrap text-title text-ink">{dateLabel(value)}</span>
+      <MiniStep onClick={() => onChange(addDaysToParts(value, 1))} label="Next day">
         <ChevronRight className="size-6" strokeWidth={2.5} aria-hidden />
-      </RoundButton>
+      </MiniStep>
     </div>
   );
 }
 
-// The time control stacks the value over its steppers, so a wide "12:30 PM"
-// (the old bug: 4-digit times wrapped to a new line, #9) can never reflow.
-function TimeStepper({
+/** Compact time stepper: hour steppers · value · minute steppers, one row. */
+function TimeEditor({
   value,
   onChange,
 }: {
@@ -217,21 +279,25 @@ function TimeStepper({
   onChange: (v: TimeParts) => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-2.5 rounded-xl bg-ground/60 px-4 py-3">
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-ground/70 px-3 py-2.5">
+      <div className="flex items-center gap-1.5">
+        <MiniStep onClick={() => onChange(stepHour(value, -1))} label="Hour down">
+          <Minus className="size-5" strokeWidth={2.5} aria-hidden />
+        </MiniStep>
+        <MiniStep onClick={() => onChange(stepHour(value, 1))} label="Hour up">
+          <Plus className="size-5" strokeWidth={2.5} aria-hidden />
+        </MiniStep>
+      </div>
       <span className="whitespace-nowrap text-title tabular-nums text-ink">
         {timeLabel(value)}
       </span>
-      <div className="flex items-center justify-center gap-6">
-        <StepperPair
-          label="Hour"
-          onDec={() => onChange(stepHour(value, -1))}
-          onInc={() => onChange(stepHour(value, 1))}
-        />
-        <StepperPair
-          label="Min"
-          onDec={() => onChange(stepMinute(value, -1))}
-          onInc={() => onChange(stepMinute(value, 1))}
-        />
+      <div className="flex items-center gap-1.5">
+        <MiniStep onClick={() => onChange(stepMinute(value, -1))} label="Minute down">
+          <Minus className="size-5" strokeWidth={2.5} aria-hidden />
+        </MiniStep>
+        <MiniStep onClick={() => onChange(stepMinute(value, 1))} label="Minute up">
+          <Plus className="size-5" strokeWidth={2.5} aria-hidden />
+        </MiniStep>
       </div>
     </div>
   );
@@ -325,17 +391,48 @@ export function AddEventPanel({
   const allKeys = members.map((m) => m.key);
   const editing = Boolean(initialEvent);
   const recurring = initialEvent?.recurring ?? false;
-  const deletable = Boolean(initialEvent?.hearthGroupId);
+  // Any event being edited can be deleted: a Hearth event by its group id, or a
+  // phone-made event by its real calendar + event id (never a synthetic wall id
+  // without a group). This is what makes EVERY event on the wall deletable.
+  const deletable = Boolean(
+    initialEvent &&
+      (initialEvent.hearthGroupId ||
+        (initialEvent.calendarId && !initialEvent.id.startsWith("hearth:"))),
+  );
 
   const [draft, setDraft] = useState<EventDraft>(() =>
     initialEvent
       ? draftFromEvent(initialEvent, allKeys, timeZone)
       : defaultDraft(initialDate, now),
   );
+  // Which compact date/time editor is expanded (only one at a time), and whether
+  // the Reminder options are expanded (Phase 2 #7 — a denser, collapsible form).
+  type OpenField = "startDate" | "startTime" | "endDate" | "endTime" | null;
+  const [openField, setOpenField] = useState<OpenField>(null);
+  const [remOpen, setRemOpen] = useState(false);
+  const toggleField = (f: Exclude<OpenField, null>) =>
+    setOpenField((cur) => (cur === f ? null : f));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
+  // Touch walls type with the in-app on-screen keyboard (no native input ever
+  // focuses, so the OS keyboard can't appear and shrink the canvas). A PC/laptop
+  // (fine pointer, hover) instead gets a real text input so a physical keyboard
+  // works normally (Phase 2 #8). Computed once — this panel only renders client-side.
+  const [isTouch] = useState(() => {
+    if (typeof window === "undefined") return false;
+    // Either signal means "treat as a touch device" — deliberately generous so a
+    // kiosk WebView never slips into the native-input path and pops the OS
+    // keyboard. A plain PC (no touchscreen, fine pointer) is the only thing that
+    // reads as non-touch and gets the real, physically-typable input.
+    const coarse =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
+    const hasTouchPoints =
+      typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
+    return coarse || hasTouchPoints;
+  });
 
   useEffect(() => setShown(true), []);
 
@@ -368,6 +465,8 @@ export function AddEventPanel({
     patch({ repeat: v, countdown: v === "none" ? draft.countdown : false });
 
   const repeatsOn = draft.repeat !== "none";
+  const reminderLabel =
+    REMINDER_OPTIONS.find((o) => o.v === draft.reminder)?.l ?? "None";
 
   async function submit() {
     setSubmitting(true);
@@ -469,7 +568,7 @@ export function AddEventPanel({
         </div>
 
         {/* Body */}
-        <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-8 py-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-8 py-6">
           {recurring && (
             <p className="rounded-xl bg-ground px-4 py-3 text-body text-ink-soft">
               This is a repeating event — edit it on your phone. You can delete it
@@ -478,23 +577,44 @@ export function AddEventPanel({
           )}
 
           <Section icon={<Type className="size-5" strokeWidth={2} />} label="Title">
-            <button
-              type="button"
-              onClick={() => setKbOpen(true)}
-              aria-label="Event title"
-              className={`flex min-h-[3.75rem] w-full items-center rounded-xl px-4 py-3 text-left text-body transition-colors ${
-                kbOpen ? "bg-ground-2 ring-2 ring-ink/15" : "bg-ground hover:bg-ground-2"
-              }`}
-            >
-              {draft.title ? (
-                <span className="text-ink">{draft.title}</span>
-              ) : (
-                <span className="text-ink-faint">What&rsquo;s happening?</span>
-              )}
-              {kbOpen && (
-                <span className="ml-0.5 inline-block h-7 w-0.5 animate-pulse bg-ink" aria-hidden />
-              )}
-            </button>
+            {isTouch ? (
+              // Wall: a tappable display that opens the in-app keyboard — no native
+              // input, so the OS keyboard never appears.
+              <button
+                type="button"
+                onClick={() => setKbOpen(true)}
+                aria-label="Event title"
+                className={`flex min-h-[3.75rem] w-full items-center rounded-xl px-4 py-3 text-left text-body transition-colors ${
+                  kbOpen ? "bg-ground-2 ring-2 ring-ink/15" : "bg-ground hover:bg-ground-2"
+                }`}
+              >
+                {draft.title ? (
+                  <span className="text-ink">{draft.title}</span>
+                ) : (
+                  <span className="text-ink-faint">What&rsquo;s happening?</span>
+                )}
+                {kbOpen && (
+                  <span className="ml-0.5 inline-block h-7 w-0.5 animate-pulse bg-ink" aria-hidden />
+                )}
+              </button>
+            ) : (
+              // PC/laptop: a real input so the physical keyboard just works.
+              <input
+                type="text"
+                autoFocus
+                value={draft.title}
+                onChange={(e) => patch({ title: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (canSubmit) submit();
+                  }
+                }}
+                placeholder="What's happening?"
+                aria-label="Event title"
+                className="min-h-[3.75rem] w-full rounded-xl bg-ground px-4 py-3 text-body text-ink outline-none transition-colors placeholder:text-ink-faint hover:bg-ground-2 focus:bg-ground-2 focus:ring-2 focus:ring-ink/15"
+              />
+            )}
           </Section>
 
           <InlineRow icon={<Sun className="size-5" strokeWidth={2} />} label="All-day">
@@ -506,40 +626,79 @@ export function AddEventPanel({
           </InlineRow>
 
           <Section icon={<Clock className="size-5" strokeWidth={2} />} label="Starts">
-            <div className="flex flex-col gap-3">
-              <DateStepper
-                value={draft.startDate}
-                onChange={(v) => patch({ startDate: v })}
-              />
+            <div className="flex gap-2">
+              <FieldPill
+                active={openField === "startDate"}
+                onClick={() => toggleField("startDate")}
+                icon={<CalendarDays className="size-5" strokeWidth={2} />}
+                className={draft.allDay ? "flex-1" : "flex-[3]"}
+              >
+                {dateLabel(draft.startDate)}
+              </FieldPill>
               {!draft.allDay && (
-                <TimeStepper
-                  value={draft.startTime}
-                  onChange={(v) => patch({ startTime: v })}
-                />
+                <FieldPill
+                  active={openField === "startTime"}
+                  onClick={() => toggleField("startTime")}
+                  icon={<Clock className="size-5" strokeWidth={2} />}
+                  className="flex-[2]"
+                >
+                  {timeLabel(draft.startTime)}
+                </FieldPill>
               )}
             </div>
+            {openField === "startDate" && (
+              <DateEditor value={draft.startDate} onChange={(v) => patch({ startDate: v })} />
+            )}
+            {openField === "startTime" && !draft.allDay && (
+              <TimeEditor value={draft.startTime} onChange={(v) => patch({ startTime: v })} />
+            )}
           </Section>
 
           <Section icon={<CalendarDays className="size-5" strokeWidth={2} />} label="Ends">
-            <div className="flex flex-col gap-3">
-              <DateStepper
-                value={draft.endDate}
-                onChange={(v) => patch({ endDate: v })}
-              />
+            <div className="flex gap-2">
+              <FieldPill
+                active={openField === "endDate"}
+                onClick={() => toggleField("endDate")}
+                icon={<CalendarDays className="size-5" strokeWidth={2} />}
+                className={draft.allDay ? "flex-1" : "flex-[3]"}
+              >
+                {dateLabel(draft.endDate)}
+              </FieldPill>
               {!draft.allDay && (
-                <TimeStepper
-                  value={draft.endTime}
-                  onChange={(v) => patch({ endTime: v })}
-                />
+                <FieldPill
+                  active={openField === "endTime"}
+                  onClick={() => toggleField("endTime")}
+                  icon={<Clock className="size-5" strokeWidth={2} />}
+                  className="flex-[2]"
+                >
+                  {timeLabel(draft.endTime)}
+                </FieldPill>
               )}
             </div>
+            {openField === "endDate" && (
+              <DateEditor value={draft.endDate} onChange={(v) => patch({ endDate: v })} />
+            )}
+            {openField === "endTime" && !draft.allDay && (
+              <TimeEditor value={draft.endTime} onChange={(v) => patch({ endTime: v })} />
+            )}
           </Section>
 
           {!editing && (
-            <Section icon={<Repeat className="size-5" strokeWidth={2} />} label="Repeats">
-              <Segmented options={REPEAT_OPTIONS} value={draft.repeat} onChange={setRepeat} />
+            <>
+              <InlineRow icon={<Repeat className="size-5" strokeWidth={2} />} label="Repeats">
+                <Toggle
+                  on={repeatsOn}
+                  onChange={(on) => setRepeat(on ? "weekly" : "none")}
+                  label="Repeats"
+                />
+              </InlineRow>
               {repeatsOn && (
-                <div className="mt-1 flex flex-col gap-3 rounded-xl bg-ground px-4 py-4">
+                <div className="-mt-2 flex flex-col gap-3 rounded-xl bg-ground px-4 py-4">
+                  <Segmented
+                    options={REPEAT_OPTIONS.filter((o) => o.v !== "none")}
+                    value={draft.repeat}
+                    onChange={setRepeat}
+                  />
                   <Segmented
                     options={REPEAT_END_OPTIONS}
                     value={draft.repeatEndMode}
@@ -560,14 +719,14 @@ export function AddEventPanel({
                     </div>
                   )}
                   {draft.repeatEndMode === "until" && (
-                    <DateStepper
+                    <DateEditor
                       value={draft.repeatUntil}
                       onChange={(v) => patch({ repeatUntil: v })}
                     />
                   )}
                 </div>
               )}
-            </Section>
+            </>
           )}
 
           <InlineRow icon={<Timer className="size-5" strokeWidth={2} />} label="Countdown">
@@ -585,13 +744,38 @@ export function AddEventPanel({
           )}
 
           {!editing && (
-            <Section icon={<Bell className="size-5" strokeWidth={2} />} label="Reminder">
-              <Segmented
-                options={REMINDER_OPTIONS}
-                value={draft.reminder}
-                onChange={(v) => patch({ reminder: v })}
-              />
-            </Section>
+            <section className="flex flex-col gap-3 border-t border-hairline pt-5">
+              <button
+                type="button"
+                aria-expanded={remOpen}
+                onClick={() => setRemOpen((o) => !o)}
+                className="flex items-center justify-between gap-4"
+              >
+                <span className="flex items-center gap-2.5 text-ink-soft">
+                  <span className="text-ink-faint" aria-hidden>
+                    <Bell className="size-5" strokeWidth={2} />
+                  </span>
+                  <span className="text-label font-semibold uppercase tracking-wide">
+                    Reminder
+                  </span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-body text-ink">{reminderLabel}</span>
+                  <ChevronDown
+                    className={`size-5 text-ink-faint transition-transform ${remOpen ? "rotate-180" : ""}`}
+                    strokeWidth={2}
+                    aria-hidden
+                  />
+                </span>
+              </button>
+              {remOpen && (
+                <Segmented
+                  options={REMINDER_OPTIONS}
+                  value={draft.reminder}
+                  onChange={(v) => patch({ reminder: v })}
+                />
+              )}
+            </section>
           )}
 
           <Section
@@ -636,7 +820,7 @@ export function AddEventPanel({
                     className="flex flex-col items-center gap-1.5"
                   >
                     <span
-                      className={`flex size-14 items-center justify-center rounded-full font-display text-title transition-all ${
+                      className={`flex size-14 items-center justify-center rounded-full font-display text-[1.75rem] leading-none transition-all ${
                         dark ? "text-ink" : "text-white"
                       } ${
                         selected

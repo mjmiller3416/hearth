@@ -86,6 +86,10 @@ export function CalendarView() {
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(
     () => new Set(),
   );
+  // Single (non-Hearth) events being deleted, hidden by id until the poll agrees.
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => setMounted(true), []);
 
@@ -161,11 +165,13 @@ export function CalendarView() {
         ...overlays.map((o) => o.event),
       ];
     }
-    if (pendingDeletes.size === 0) return merged;
+    if (pendingDeletes.size === 0 && pendingDeleteIds.size === 0) return merged;
     return merged.filter(
-      (e) => !(e.hearthGroupId && pendingDeletes.has(e.hearthGroupId)),
+      (e) =>
+        !(e.hearthGroupId && pendingDeletes.has(e.hearthGroupId)) &&
+        !pendingDeleteIds.has(e.id),
     );
-  }, [baseEvents, overlays, pendingDeletes]);
+  }, [baseEvents, overlays, pendingDeletes, pendingDeleteIds]);
 
   // Retire an overlay once the poll returns the same id with matching content
   // (id alone is not enough — a title-only edit keeps the id).
@@ -192,6 +198,21 @@ export function CalendarView() {
     }
     if (changed) setPendingDeletes(next);
   }, [baseEvents, pendingDeletes]);
+
+  // Drop single-event delete markers once the poll no longer returns that id.
+  useEffect(() => {
+    if (pendingDeleteIds.size === 0) return;
+    const liveIds = new Set(baseEvents.map((e) => e.id));
+    let changed = false;
+    const next = new Set(pendingDeleteIds);
+    for (const id of pendingDeleteIds) {
+      if (!liveIds.has(id)) {
+        next.delete(id);
+        changed = true;
+      }
+    }
+    if (changed) setPendingDeleteIds(next);
+  }, [baseEvents, pendingDeleteIds]);
 
   const filtered = !filter
     ? events
@@ -250,16 +271,47 @@ export function CalendarView() {
   const handleDelete = useCallback(
     (event: CalendarEvent) => {
       const gid = event.hearthGroupId;
-      if (!gid) return; // only Hearth-created events are deletable from the wall
-      setPendingDeletes((prev) => new Set(prev).add(gid));
-      setOverlays((prev) => prev.filter((o) => o.event.hearthGroupId !== gid));
-      // Fire-and-forget; the pending-delete marker hides it until the poll agrees.
+      // A Hearth event deletes every copy by group id; any other (phone-made)
+      // event deletes the single copy by its real calendar + event id.
+      const body = gid
+        ? { hearthGroupId: gid }
+        : { calendarId: event.calendarId, eventId: event.id };
+
+      // Hide it immediately (by group or by id), and undo the hide if the request
+      // fails so a delete that didn't take doesn't vanish the event forever.
+      const unhide = () => {
+        if (gid) {
+          setPendingDeletes((prev) => {
+            const n = new Set(prev);
+            n.delete(gid);
+            return n;
+          });
+        } else {
+          setPendingDeleteIds((prev) => {
+            const n = new Set(prev);
+            n.delete(event.id);
+            return n;
+          });
+        }
+      };
+
+      if (gid) setPendingDeletes((prev) => new Set(prev).add(gid));
+      else setPendingDeleteIds((prev) => new Set(prev).add(event.id));
+      setOverlays((prev) =>
+        prev.filter((o) =>
+          gid ? o.event.hearthGroupId !== gid : o.event.id !== event.id,
+        ),
+      );
+
       fetch("/api/calendar/events", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ hearthGroupId: gid }),
+        body: JSON.stringify(body),
       })
-        .catch(() => {})
+        .then((res) => {
+          if (!res.ok) unhide();
+        })
+        .catch(unhide)
         .finally(() => refetch());
     },
     [refetch],
@@ -276,6 +328,7 @@ export function CalendarView() {
   return (
     <ViewFrame
       title={title}
+      titleHidden
       isStale={isStale}
       lastUpdated={lastUpdated}
       actions={

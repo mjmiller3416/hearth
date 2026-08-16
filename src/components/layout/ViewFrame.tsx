@@ -9,6 +9,7 @@ export function ViewFrame({
   children,
   actions,
   filters,
+  titleHidden = false,
   isStale = false,
   lastUpdated = null,
 }: {
@@ -18,15 +19,25 @@ export function ViewFrame({
   /** Optional controls that sit on the title row, between the title and actions
    *  (e.g. the calendar's member filter chips — Phase 2 #1). Scrolls if wide. */
   filters?: ReactNode;
+  /**
+   * Hide the visible title but keep it for assistive tech (the calendar drops
+   * "August 2026" so the row is just tags-left / controls-right — Phase 2). The
+   * filters then align to the left where the title used to sit.
+   */
+  titleHidden?: boolean;
   isStale?: boolean;
   lastUpdated?: number | null;
 }) {
   return (
     <section className="flex h-full flex-col px-10 pb-8 pt-7">
       <header className="mb-6 flex items-center justify-between gap-6">
-        <h1 className="shrink-0 font-display text-heading leading-none text-ink">
-          {title}
-        </h1>
+        {titleHidden ? (
+          <h1 className="sr-only">{title}</h1>
+        ) : (
+          <h1 className="shrink-0 font-display text-heading leading-none text-ink">
+            {title}
+          </h1>
+        )}
         {filters && (
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto">
             {filters}

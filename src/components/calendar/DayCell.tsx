@@ -68,7 +68,7 @@ export function DayCell({
       <div className="relative z-10 flex min-h-0 flex-col gap-0.5 px-1.5 pb-1 pt-1">
         <div className="flex items-center">
           {today ? (
-            <span className="flex size-8 items-center justify-center rounded-full bg-ink font-display text-[1.35rem] leading-none text-surface">
+            <span className="flex size-10 items-center justify-center rounded-full bg-ink font-display text-[1.35rem] leading-none text-surface">
               {date.getDate()}
             </span>
           ) : (

@@ -106,7 +106,9 @@ export function EventChip({
 
   if (variant === "list") {
     return (
-      <div className={`relative overflow-hidden rounded-lg ${textClass}`}>
+      <div
+        className={`relative isolate overflow-hidden rounded-lg [transform:translateZ(0)] ${textClass}`}
+      >
         <BandLayer bands={bands} />
         <div
           className="relative flex items-baseline gap-3 px-4 py-3"
@@ -129,18 +131,21 @@ export function EventChip({
   const time = eventTimeLabel(event, timeZone);
   return (
     <div
-      className={`relative overflow-hidden rounded-md ${textClass}`}
+      className={`relative isolate overflow-hidden rounded-md [transform:translateZ(0)] ${textClass}`}
       title={event.title}
     >
       <BandLayer bands={bands} />
       <div
-        className="relative flex items-baseline gap-1.5 truncate px-2 py-px text-label leading-tight"
+        className="relative flex min-w-0 items-baseline gap-1.5 px-2 py-px text-label leading-tight"
         style={textStyle}
       >
         {time && (
           <span className="shrink-0 font-semibold tabular-nums opacity-90">{time}</span>
         )}
-        <span className="truncate">{event.title}</span>
+        {/* min-w-0 + flex-1 is what actually lets the title shrink and show the
+            ellipsis; without min-w-0 a flex child stays at content width and the
+            older wall WebView hard-clips it (references photo-04 vs photo-05). */}
+        <span className="min-w-0 flex-1 truncate">{event.title}</span>
         {showBadge && (
           <span className="ml-auto shrink-0 rounded-full bg-black/20 px-1.5 font-semibold tabular-nums">
             {countdownBadge(event, now)}

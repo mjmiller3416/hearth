@@ -10,8 +10,10 @@ import { buildRecurrence, resolveTimeZone } from "@/lib/calendar/recurrence";
 import {
   reconcileEvent,
   deleteHearthGroup,
+  deleteEventCopy,
   findHearthCopies,
   getSourceFields,
+  CalendarWriteError,
   type EventSpec,
 } from "@/lib/google/calendar";
 import type {
@@ -273,27 +275,60 @@ export async function PUT(req: Request) {
   return NextResponse.json({ event, failures }, { status: 200 });
 }
 
-// DELETE /api/calendar/events  — remove every copy of a Hearth event by group id.
+// DELETE /api/calendar/events — remove an event. Two shapes:
+//   { hearthGroupId }         → every per-person copy of a Hearth event.
+//   { calendarId, eventId }   → one non-Hearth (phone-made) event in place.
+// The second shape is what makes ANY event on the wall deletable, not just the
+// ones Hearth created (a phone-made event has no hearthGroupId). It is allowlisted
+// against the read set and rejects synthetic wall ids, exactly like the edit path.
 export async function DELETE(req: Request) {
   const denied = await requireDevice();
   if (denied) return denied;
 
-  let body: { hearthGroupId?: unknown };
+  let body: { hearthGroupId?: unknown; calendarId?: unknown; eventId?: unknown };
   try {
-    body = (await req.json()) as { hearthGroupId?: unknown };
+    body = (await req.json()) as {
+      hearthGroupId?: unknown;
+      calendarId?: unknown;
+      eventId?: unknown;
+    };
   } catch {
     return bad("Request body must be JSON.");
   }
 
   const hearthGroupId =
     typeof body.hearthGroupId === "string" ? body.hearthGroupId.trim() : "";
-  if (!hearthGroupId) return bad("Missing event id.");
+
+  if (hearthGroupId) {
+    try {
+      const { deleted, failures } = await deleteHearthGroup(hearthGroupId);
+      return NextResponse.json({ ok: failures.length === 0, deleted, failures });
+    } catch (err) {
+      console.error("[api/calendar/events] delete failed:", err);
+      return NextResponse.json({ error: "Couldn't delete the event." }, { status: 502 });
+    }
+  }
+
+  // Single non-Hearth event by its real calendar + event id.
+  const calendarId = typeof body.calendarId === "string" ? body.calendarId : "";
+  const eventId = typeof body.eventId === "string" ? body.eventId : "";
+  if (!calendarId || !eventId) return bad("Missing event id.");
+  // SECURITY: only a calendar Hearth reads, and never a synthetic wall id.
+  if (!getReadCalendarIds().includes(calendarId) || eventId.startsWith("hearth:")) {
+    return bad("That event can't be deleted from here.");
+  }
 
   try {
-    const { deleted, failures } = await deleteHearthGroup(hearthGroupId);
-    return NextResponse.json({ ok: failures.length === 0, deleted, failures });
+    await deleteEventCopy(calendarId, eventId);
+    return NextResponse.json({ ok: true, deleted: 1, failures: [] });
   } catch (err) {
+    const status = err instanceof CalendarWriteError ? err.status : 502;
     console.error("[api/calendar/events] delete failed:", err);
-    return NextResponse.json({ error: "Couldn't delete the event." }, { status: 502 });
+    // 403 = the calendar isn't shared with write access to Hearth.
+    const message =
+      status === 403
+        ? "Hearth can't delete on that calendar — share it with edit access."
+        : "Couldn't delete the event.";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 }

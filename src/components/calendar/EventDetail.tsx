@@ -45,7 +45,7 @@ function Avatar({ member }: { member: Member }) {
   return (
     <span className="flex items-center gap-2.5">
       <span
-        className={`flex size-11 items-center justify-center rounded-full font-display text-title ${
+        className={`flex size-11 items-center justify-center rounded-full font-display text-[1.5rem] leading-none ${
           dark ? "text-ink" : "text-white"
         }`}
         style={{ backgroundColor: `var(${colorVar(member.color)})` }}

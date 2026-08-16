@@ -1,4 +1,5 @@
 import { promises as fs } from "fs";
+import os from "os";
 import path from "path";
 import { getMembers } from "@/lib/calendar/config";
 import { EVERYONE_COLOR } from "@/lib/calendar/palette";
@@ -31,12 +32,61 @@ export interface Settings {
   colorsBySlug: Record<string, string>;
 }
 
-const DATA_DIR = process.env.HEARTH_DATA_DIR?.trim() || path.join(process.cwd(), ".hearth-data");
-const FILE = path.join(DATA_DIR, "settings.json");
+// The preferred data dir. On Railway this should be a persistent volume via
+// HEARTH_DATA_DIR; otherwise `.hearth-data/` under the working dir.
+const PREFERRED_DIR =
+  process.env.HEARTH_DATA_DIR?.trim() || path.join(process.cwd(), ".hearth-data");
+
+// The resolved, VERIFIED-WRITABLE data dir, chosen once. A common wall failure:
+// HEARTH_DATA_DIR points at a mounted volume that the container user (uid 1001)
+// can't write to, so every save threw a 500 and the color picker "reverted"
+// (the client rolled back the optimistic choice — Phase 2 #5 bug). We now probe
+// the preferred dir and, if it isn't writable, fall back to the OS temp dir so a
+// save always succeeds. Reads use the SAME resolved dir, so a fallback save is
+// still visible within the running instance. (Cross-redeploy persistence still
+// needs a writable volume — the warning below says so.)
+let resolvedDirPromise: Promise<string> | null = null;
+
+async function isWritable(dir: string): Promise<boolean> {
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const probe = path.join(dir, ".write-test");
+    await fs.writeFile(probe, "ok", "utf8");
+    await fs.rm(probe, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function dataDir(): Promise<string> {
+  if (!resolvedDirPromise) {
+    resolvedDirPromise = (async () => {
+      if (await isWritable(PREFERRED_DIR)) return PREFERRED_DIR;
+      const fallback = path.join(os.tmpdir(), "hearth-data");
+      if (await isWritable(fallback)) {
+        console.warn(
+          `[settings] data dir ${PREFERRED_DIR} is not writable; falling back to ${fallback}. ` +
+            `Colors will save but NOT survive a redeploy — point HEARTH_DATA_DIR at a volume ` +
+            `writable by the container user (uid 1001), e.g. chown the mount or run an init step.`,
+        );
+        return fallback;
+      }
+      // Nothing writable — keep the preferred path so the real error surfaces.
+      console.error(`[settings] no writable data dir found (tried ${PREFERRED_DIR}, ${fallback}).`);
+      return PREFERRED_DIR;
+    })();
+  }
+  return resolvedDirPromise;
+}
+
+async function settingsFile(): Promise<string> {
+  return path.join(await dataDir(), "settings.json");
+}
 
 export async function readSettings(): Promise<Settings> {
   try {
-    const raw = await fs.readFile(FILE, "utf8");
+    const raw = await fs.readFile(await settingsFile(), "utf8");
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
       colorsBySlug:
@@ -51,8 +101,9 @@ export async function readSettings(): Promise<Settings> {
 }
 
 async function writeSettings(next: Settings): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(next), "utf8");
+  const dir = await dataDir();
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, "settings.json"), JSON.stringify(next), "utf8");
 }
 
 /** The set of palette slugs a user may recolor: each member's, plus "everyone". */
