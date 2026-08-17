@@ -16,14 +16,17 @@ and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
 contract, kiosk hardening, deploy scaffolding) is in place and hardened; device
 authorization lives in the route and page logic, not middleware (see
 [Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
-family's Google calendars and can create/edit events from the wall (see
+family's Google calendars and can create, edit, and delete non-recurring events
+from the wall, on a per-member-calendar model (see
 [Calendar](#calendar-phase-1)). Phase 2 adds **Clean** (Maryann's guided
 cleaning session) and **Chores** (the kids' checklist), both driven by Tada! (see
 [Clean & Chores](#clean--chores-phase-2)) — this is where Hearth stops being
-read-only and begins **writing** task completions. The remaining views — Lists,
-Meals, and Shopping — still render placeholders and land phase by phase. (The
-plan was reworked: Tasks split into **Clean** + **Chores**, and Recipes was
-replaced by **Shopping** — see the spec.)
+read-only and begins **writing** task completions; it also adds a **Settings**
+view for customizing the family colors, whose choice is Hearth's one piece of
+persisted state (spec D12). The remaining views — Lists, Meals, and Shopping —
+still render placeholders and land phase by phase. (The plan was reworked: Tasks
+split into **Clean** + **Chores**, and Recipes was replaced by **Shopping** — see
+the spec.)
 
 ## Stack
 
@@ -83,12 +86,15 @@ security boundary. Every protected surface verifies for itself:
 - The device cookie is `httpOnly`, `secure` (in production), `sameSite=lax`,
   and not readable from client JavaScript.
 
-As of Phase 1.5 the device token also gates a **write** path: `POST
-/api/calendar/events` creates events on Google Calendar. That handler calls
-`requireDevice()` first, before parsing the body, and **allowlists the target
-calendar** — a create is rejected unless its `calendarId` is present in
-`CALENDAR_MAP` with `writable: true`, so a crafted request cannot write to an
-arbitrary calendar the household account happens to have access to.
+As of Phase 1.5 the device token also gates a **write** path: `POST` (create),
+`PUT` (edit), and `DELETE` on `/api/calendar/events`. Every handler calls
+`requireDevice()` first, before parsing the body. A create **derives its target
+calendars from member config** — the client names people to assign, never a
+calendar, so it cannot write to an arbitrary calendar the household account
+happens to have access to. Editing or deleting a phone-made event accepts a
+`{calendarId, eventId}` only after **allowlisting it against the calendars Hearth
+reads** and rejecting any synthetic wall id; recurring events are refused
+server-side (corrections happen on a phone, spec D2).
 
 Phase 2 adds a second write path — task completion. `POST /api/tasks/complete`
 and `POST /api/tasks/undo` write to Tada! **as** a household member (Maryann in
@@ -119,9 +125,11 @@ components, and never reaches the browser bundle.
 |---|---|---|
 | `HEARTH_DEVICE_TOKEN` | 0 | Long-lived device token for the `/setup` gate. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` | 1 · 1.5 | Google Calendar access. Phase 1.5 needs the `calendar.events` (read-write) scope; grant the household account "Make changes to events" on writable calendars. |
-| `MEMBERS` | 1.5 | JSON array of `{ key, name, color }` — the canonical taggable people. |
-| `CALENDAR_MAP` | 1 · 1.5 | JSON map of calendar id → `{ label, writable, defaultMemberKey? }`. `writable` allowlists both the picker and the write path. |
+| `MEMBERS` | 1.5 | JSON array of `{ key, name, color, calendarId }` — the canonical, ordered people; each owns a Google calendar (their assigned-event write target). |
+| `FAMILY_CALENDAR_ID` | 1.5 | Shared family calendar id. Whole-family events are written here as one event; phone-made events here also show on the wall. (Replaces the old `CALENDAR_MAP`.) |
 | `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |
+| `HEARTH_CALENDAR_MOCK` | 1 · 1.5 | Local dev only — serves synthetic calendar events (incl. the create/edit/delete reconcile). Ignored in production. |
+| `HEARTH_DATA_DIR` | 2 | Absolute path (a Railway volume, e.g. `/data`) for the shared colors file (spec D12). Unset → in-process memory that resets on redeploy. |
 | `TADA_API_URL` / `TADA_DEVICE_TOKEN` | 2 · 4 | Tada! base URL + device token. Reads (Clean session, rooms, completions, chores; supplies roster in Phase 4) + scoped writes: completions in Phase 2, supply flag-low in Phase 4. |
 | `TADA_MEMBERS` | 2 | JSON array of `{ memberKey, tadaUserId, role }` — the people the wall may complete tasks as (the acting-member allowlist). `memberKey` links to `MEMBERS` for name + color; `role` is `adult` or `kid`. |
 | `HEARTH_ADULT_ID` | 2 | Maryann's Tada! user id — whose session the Clean view is, and whose completions done-today shows. |
@@ -132,23 +140,34 @@ components, and never reaches the browser bundle.
 
 The Calendar view reads the family Google calendars and renders a month grid
 (week view is a secondary toggle). Google Calendar is the system of record; as of
-Phase 1.5 Hearth is a **read + create** client — it creates events but never
-edits or deletes them (spec D2, amended; corrections happen on a phone).
+Phase 1.5 Hearth is a **read + write** client — it can **create, edit, and
+delete** events (including ones made on a phone), with one carve-out: **recurring
+events are read-only on the wall** and refuse edits with "Edit repeating events on
+your phone" (spec D2, amended).
 
-Event color comes from **member tags**, falling back to the owning calendar's
-`defaultMemberKey` for untagged events (spec D3, amended). One tag fills the chip
-solid; two or three render as hard-edged color bands; four or more collapse to a
-single "everyone" treatment. Tags and a Hearth-only countdown flag ride along in
+The model is **per-member calendars**: each person owns a Google calendar, and
+**assignment decides where an event lives** — there is no "which calendar"
+picker. A whole-family event is one event on the shared family calendar; an event
+assigned to a subset of people fans out one copy per assignee's own calendar
+(linked by a `hearthGroupId`), and the wall de-dupes those copies back into one
+banded chip (spec D3).
+
+Event color comes from the assigned members, falling back to the owning
+calendar's member for untagged events. One member fills the chip solid; two or
+three render as hard-edged color bands; four or more collapse to a single
+"everyone" treatment; an untagged family-calendar event reads "everyone" too.
+Member colors are customizable in Settings (spec D12). Hearth's own metadata
+(`hearthGroupId`, `hearthMembers`, a countdown flag, `hearthOwner`) rides along in
 the event's `extendedProperties.private`, invisible in Google's own UI. The chip
 row across the top filters the grid to one member. Tapping an empty day (or the
-floating **+**) opens the Add Event panel: pick which calendar it syncs to,
-tag who it concerns, set repeat / reminder / countdown, and it's written straight
-to Google.
+floating **+**) opens the Add / Edit Event panel: assign who it concerns (which
+decides the calendars), set repeat / reminder / countdown, and it's written
+straight to Google. Tapping an existing non-recurring event reopens the same panel
+to edit or delete it.
 
-Members and calendars are configured separately (there are more calendars than
-people): `MEMBERS` is the taggable-people list; `CALENDAR_MAP` maps each Google
-calendar to a picker label, a `writable` flag (which also allowlists the write
-path), and a fallback color. See [`.env.example`](.env.example).
+Configuration is two variables: `MEMBERS` (the ordered people, each with their own
+`calendarId`) and `FAMILY_CALENDAR_ID` (the shared calendar). There is no longer a
+`CALENDAR_MAP`. See [`.env.example`](.env.example).
 
 The whole view is authored on a fixed **1920×1080** canvas and scaled to fit the
 window it runs in (spec §6.1 — one drawn resolution, fitted, never reflowed), so
@@ -158,20 +177,22 @@ it is pixel-crisp on the wall and never clipped in a smaller dev window.
 Phase 1, done by an operator — it needs real Google credentials):
 
 1. Create a dedicated household Google account.
-2. From each family member's account, share their calendar into the household
-   account with read access.
+2. From each family member's account, share their calendar — and the shared
+   family calendar — into the household account with **write** access ("Make
+   changes to events"), since the wall now creates, edits, and deletes.
 3. In Google Cloud Console: create a project, enable the Calendar API, create
    OAuth credentials, and run the consent flow **once** as the household account
-   to capture a refresh token.
-4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, and
-   `CALENDAR_MAP` (see [`.env.example`](.env.example)) as Railway service
-   variables.
+   with the `calendar.events` (read-write) scope to capture a refresh token.
+4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`,
+   `MEMBERS`, and `FAMILY_CALENDAR_ID` (see [`.env.example`](.env.example)) as
+   Railway service variables.
 
 Until those are set the view degrades calmly to an empty grid — no error, no
 crash (spec §6.2).
 
-**How it reads:** `GET /api/calendar?start=&end=` fetches events across the
-mapped calendars via Google's `events.list`. Recurring events are expanded
+**How it reads:** `GET /api/calendar?start=&end=` fetches events across every
+member calendar plus the family calendar via Google's `events.list`. Recurring
+events are expanded
 server-side (`singleEvents=true`); polls are incremental using a `syncToken`
 held in process memory (a `410 Gone` discards the token and re-syncs). The
 client polls every 60 seconds through the shared stale-data hook and returns to
@@ -227,15 +248,17 @@ state (spec §6.2), and local development runs on `HEARTH_TASKS_MOCK=1`.
 Layout is built for a **1920×1080 landscape** panel viewed from six to ten
 feet. The type scale lives in `src/app/globals.css` under `@theme` — tune those
 tokens against the real hardware (do not scatter sizes through components). The
-four **member colors** are defined once there and mirrored in
-`src/lib/config.ts`; Mitchell is locked to green (spec D3).
+**member colors** are defined there as defaults (as CSS `--color-<slug>` tokens),
+driven by the `MEMBERS` config and customizable at runtime in Settings (spec
+D3/D12).
 
 ## Deploy (Railway)
 
 One service in the existing Railway project, pointed at this repo,
 single-branch auto-deploy. Docker builder (`railway.json` → `Dockerfile`),
 health check at `/health`. Set the environment variables above as service
-variables — no volume, no database.
+variables. No database; the only optional infrastructure is a persistent volume
+mounted at `HEARTH_DATA_DIR`, which holds only the shared colors file (spec D12).
 
 ## Kiosk / hardware (Phase 5)
 
