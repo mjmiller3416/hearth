@@ -27,6 +27,7 @@ import { useTextOn } from "@/components/common/ColorProvider";
 import { useTimeZone } from "@/components/common/TimeZone";
 import {
   addDaysToParts,
+  addOneHour,
   buildBody,
   buildEditBody,
   dateLabel,
@@ -45,9 +46,11 @@ import {
 } from "@/lib/calendar/form";
 
 // The Add / Edit Event panel (Phase 1.5 #9–#20, reworked Phase 2 #5/#7/#9).
-// Slides in from the right over the grid, ordered to match the Skylight
-// interface the household already knows: Title, All-day, Start, End, Repeats,
-// Countdown, Reminder, Assign — each a clearly separated, icon-labeled section.
+// A centered pop-up over the grid (was a right-side drawer) — a wider, shorter
+// floating card that scales in on open. Sections are ordered to match the
+// Skylight interface the household already knows: Title, All-day, Start, End,
+// Repeats, Countdown, Reminder, Assign — each a clearly separated, icon-labeled
+// section.
 //
 // Phase 2 changes:
 //   #5 — tapping the dim scrim closes the panel (not just the X).
@@ -422,16 +425,21 @@ export function AddEventPanel({
   // works normally (Phase 2 #8). Computed once — this panel only renders client-side.
   const [isTouch] = useState(() => {
     if (typeof window === "undefined") return false;
-    // Either signal means "treat as a touch device" — deliberately generous so a
-    // kiosk WebView never slips into the native-input path and pops the OS
-    // keyboard. A plain PC (no touchscreen, fine pointer) is the only thing that
-    // reads as non-touch and gets the real, physically-typable input.
-    const coarse =
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(pointer: coarse)").matches;
+    const mm = (q: string) =>
+      typeof window.matchMedia === "function" && window.matchMedia(q).matches;
+    // Touch capability — generous (coarse primary pointer OR any touch points) so
+    // the kiosk WebView is always caught.
+    const coarse = mm("(pointer: coarse)");
     const hasTouchPoints =
       typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
-    return coarse || hasTouchPoints;
+    const touchCapable = coarse || hasTouchPoints;
+    // …but a device with a fine pointer (mouse/trackpad) is a PC, even if it also
+    // has a touchscreen. Only a touch-capable device with NO fine pointer is the
+    // wall kiosk. This is the fix for the OSK appearing on touchscreen PCs and
+    // blocking the physical keyboard (Todoist: "OSK on PC"). The wall reports no
+    // fine pointer, so it still gets the in-app keyboard and never the OS one.
+    const hasFinePointer = mm("(any-pointer: fine)");
+    return touchCapable && !hasFinePointer;
   });
 
   useEffect(() => setShown(true), []);
@@ -449,6 +457,22 @@ export function AddEventPanel({
   }, [onClose, kbOpen]);
 
   const patch = (p: Partial<EventDraft>) => setDraft((d) => reconcile({ ...d, ...p }));
+
+  // Changing the START carries the end to start + 1 hour, so the end always
+  // defaults to one hour after the start (Todoist: "end should default to one
+  // hour after start") instead of drifting when the start steppers move. Only
+  // for NEW timed events — editing an existing event keeps the end the user
+  // already has (reconcile still keeps it valid). Editing the End directly goes
+  // through `patch`, which never rewrites it.
+  const patchStart = (p: Partial<EventDraft>) =>
+    setDraft((d) => {
+      const next: EventDraft = { ...d, ...p };
+      if (!editing && !next.allDay) {
+        next.endDate = next.startDate;
+        next.endTime = addOneHour(next.startTime);
+      }
+      return reconcile(next);
+    });
 
   const toggleMember = (key: string) =>
     setDraft((d) =>
@@ -528,17 +552,23 @@ export function AddEventPanel({
 
   return (
     // The whole overlay closes on an outside tap (#5); the panel stops the tap
-    // so interacting inside never dismisses it.
+    // so interacting inside never dismisses it. Centered pop-up (was a right-side
+    // drawer): a wider, shorter floating card that scales in on open.
     <div
-      className="fixed inset-0 z-50 flex justify-end"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6"
       role="presentation"
       onClick={() => (kbOpen ? setKbOpen(false) : onClose())}
     >
-      <div className="absolute inset-0 bg-ink/25" aria-hidden />
+      <div
+        className={`absolute inset-0 bg-ink/25 transition-opacity duration-200 ${
+          shown ? "opacity-100" : "opacity-0"
+        }`}
+        aria-hidden
+      />
 
       <div
-        className={`relative flex h-full w-[34rem] max-w-full flex-col bg-surface shadow-[-20px_0_60px_-20px_rgba(43,38,32,0.45)] transition-transform duration-200 ${
-          shown ? "translate-x-0" : "translate-x-full"
+        className={`relative flex max-h-[86vh] w-[46rem] max-w-full flex-col overflow-hidden rounded-2xl bg-surface shadow-[0_30px_80px_-20px_rgba(43,38,32,0.55)] transition-all duration-200 ease-out ${
+          shown ? "scale-100 opacity-100" : "scale-95 opacity-0"
         }`}
         role="dialog"
         aria-modal="true"
@@ -647,10 +677,10 @@ export function AddEventPanel({
               )}
             </div>
             {openField === "startDate" && (
-              <DateEditor value={draft.startDate} onChange={(v) => patch({ startDate: v })} />
+              <DateEditor value={draft.startDate} onChange={(v) => patchStart({ startDate: v })} />
             )}
             {openField === "startTime" && !draft.allDay && (
-              <TimeEditor value={draft.startTime} onChange={(v) => patch({ startTime: v })} />
+              <TimeEditor value={draft.startTime} onChange={(v) => patchStart({ startTime: v })} />
             )}
           </Section>
 
