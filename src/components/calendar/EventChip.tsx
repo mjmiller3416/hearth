@@ -131,7 +131,14 @@ export function EventChip({
   const time = eventTimeLabel(event, timeZone);
   return (
     <div
-      className={`relative isolate overflow-hidden rounded-md [transform:translateZ(0)] ${textClass}`}
+      // w-full + min-w-0 pin the chip to the cell width explicitly. We used to
+      // rely on the parent flex-column's `align-items: stretch` to size it, which
+      // works in desktop Chrome but NOT in the wall's older Android WebView —
+      // there the chip shrank to its content width, so the inner row was never
+      // width-constrained and the title's `truncate` had nothing to clip (long
+      // names ran full-width, no ellipsis). Forcing width:100% makes truncation
+      // deterministic across both engines.
+      className={`relative isolate w-full min-w-0 overflow-hidden rounded-md [transform:translateZ(0)] ${textClass}`}
       title={event.title}
     >
       <BandLayer bands={bands} />
