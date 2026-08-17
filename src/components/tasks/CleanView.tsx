@@ -6,8 +6,6 @@ import { ViewFrame } from "@/components/layout/ViewFrame";
 import { useUpstream } from "@/hooks/useUpstream";
 import { useIdleReset } from "@/hooks/useIdleReset";
 import { useTimeZone } from "@/components/common/TimeZone";
-import { useTextOn } from "@/components/common/ColorProvider";
-import { colorVar } from "@/lib/calendar/palette";
 import type {
   Room,
   SessionTask as SessionTaskT,
@@ -53,7 +51,6 @@ interface Completing {
 
 export function CleanView() {
   const timeZone = useTimeZone();
-  const textOn = useTextOn();
   const [mounted, setMounted] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null); // null = whole house
   const [completing, setCompleting] = useState<Completing | null>(null);
@@ -179,7 +176,6 @@ export function CleanView() {
       title="Clean"
       isStale={isStale}
       lastUpdated={lastUpdated}
-      actions={adult ? <ActingBadge member={adult} dark={textOn(adult.color) === "dark"} /> : undefined}
       filters={
         configured && rooms.length > 0 ? (
           <RoomPicker rooms={rooms} activeRoomId={roomId} onSelect={setRoomId} />
@@ -221,25 +217,6 @@ export function CleanView() {
         </div>
       )}
     </ViewFrame>
-  );
-}
-
-// The "who's acting" indicator (spec §6.3). For Clean it's fixed to Maryann — her
-// session — so it's a static badge rather than a selector.
-function ActingBadge({ member, dark }: { member: TadaMember; dark: boolean }) {
-  return (
-    <span className="flex items-center gap-3">
-      <span
-        className={`flex size-10 items-center justify-center rounded-full font-display text-[1.35rem] leading-none ${
-          dark ? "text-ink" : "text-white"
-        }`}
-        style={{ backgroundColor: `var(${colorVar(member.color)})` }}
-        aria-hidden
-      >
-        {member.name.slice(0, 1).toUpperCase()}
-      </span>
-      <span className="text-label font-medium text-ink-soft">{member.name}</span>
-    </span>
   );
 }
 
