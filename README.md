@@ -23,10 +23,12 @@ cleaning session) and **Chores** (the kids' checklist), both driven by Tada! (se
 [Clean & Chores](#clean--chores-phase-2)) — this is where Hearth stops being
 read-only and begins **writing** task completions; it also adds a **Settings**
 view for customizing the family colors, whose choice is Hearth's one piece of
-persisted state (spec D12). The remaining views — Lists, Meals, and Shopping —
-still render placeholders and land phase by phase. (The plan was reworked: Tasks
-split into **Clean** + **Chores**, and Recipes was replaced by **Shopping** — see
-the spec.)
+persisted state (spec D12). **Meals** is live — a read-only view of the current
+plan and tap-to-open meal cards (ingredients + recipe) from the real Enchanted
+Spoon backend (`docs/enchanted-spoon-integration.md`). The remaining views —
+Lists and Shopping — still render placeholders and land phase by phase. (The plan
+was reworked: Tasks split into **Clean** + **Chores**, and Recipes was replaced
+by **Shopping** — see the spec.)
 
 ## Stack
 
@@ -134,7 +136,7 @@ components, and never reaches the browser bundle.
 | `TADA_MEMBERS` | 2 | JSON array of `{ memberKey, tadaUserId, role }` — the people the wall may complete tasks as (the acting-member allowlist). `memberKey` links to `MEMBERS` for name + color; `role` is `adult` or `kid`. |
 | `HEARTH_ADULT_ID` | 2 | Maryann's Tada! user id — whose session the Clean view is, and whose completions done-today shows. |
 | `HEARTH_TASKS_MOCK` | 2 | Local dev only — serves deterministic synthetic Tada! data so Clean & Chores work without the real API. Ignored in production. |
-| `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon — Meals read-only, Shopping read-write. |
+| `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon. Meals read-only (**live** — token sent as `X-API-Key`, must equal Enchanted Spoon's `INTEGRATION_API_KEY`); Shopping read-write (later). |
 
 ## Calendar (Phase 1)
 

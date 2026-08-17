@@ -184,7 +184,7 @@ Two notes on where the code sits today:
 | Clean | Tada! | 2 | Yes (task completion + undo) | ✅ mock-only |
 | Chores | Tada! | 2 | Yes (task completion + undo) | ✅ mock-only |
 | Lists | Tada! | 3 | No | ⬜ placeholder |
-| Meals | Enchanted Spoon | 4 | No | ⬜ placeholder |
+| Meals | Enchanted Spoon | 4 | No | ✅ live (real Enchanted Spoon) |
 | Shopping *(shown as "Recipes")* | Enchanted Spoon · Tada! | 4 | Yes (list items → Enchanted Spoon; supply flags → Tada!) | ⬜ placeholder |
 | Settings | Hearth (colors file) | 2 | Yes (color preference, D12) | ✅ |
 
@@ -376,11 +376,11 @@ Resolve these before or during the phase noted.
 | 1.5 | Calendar write: **create, edit, delete** (non-recurring) on the **per-member-calendar** fan-out model; member tags, countdown; **Settings** + customizable colors | (Settings) | ✅ Done |
 | 2 | Clean (session + room picker + done-today) and Chores (kids) — Tada! reads + completion/undo writes | Clean, Chores | ✅ Built, **mock-only** (live blocked on Tada! endpoints — §5.2, `docs/tada-integration-requirements.md`) |
 | 3 | Lists view | Lists | ⬜ Placeholder |
-| 4 | Meals (plan + cards) and Shopping (read-write list + Tada! supplies shelf); rename "Recipes" → "Shopping" | Meals, Shopping | ⬜ Placeholder |
+| 4 | Meals (plan + cards) and Shopping (read-write list + Tada! supplies shelf); rename "Recipes" → "Shopping" | Meals, Shopping | 🟨 **Meals ✅ live** (real Enchanted Spoon, `docs/enchanted-spoon-integration.md`); Shopping ⬜ placeholder |
 | 5 | Hardware deployment and kiosk configuration | — | ⬜ Not started |
 
 Phase 1.5 grew beyond the original "create only": it reworked the calendar onto per-member calendars (assignment decides where an event lives and its color, D3), added **edit and delete** for non-recurring events including phone-made ones (D2), and introduced the **Settings** surface with customizable, persisted family colors (D12) — Hearth's one piece of at-rest state.
 
-Phases 2 and 4 each add two content destinations. Phase 2's **Clean** and **Chores** are the same Tada! integration and the same completion write seen from two angles — Maryann's guided session and the kids' checklist — so they share a client module and build together; Clean is the larger piece and carries the phase. They are complete and verified against a mock, and go live with no Hearth code change once Tada! ships the device-scoped endpoints. Phase 4's **Meals** and **Shopping** are both Enchanted Spoon and share its client; Meals is a thin read while Shopping is the heavier read-write surface, and splitting them would strand Meals in a near-empty phase. Shopping also hosts the Tada! **supplies shelf** (§4.6). If Enchanted Spoon's shopping-list refactor is mid-flight, defer the whole phase (D6, §5.5, Q7).
+Phases 2 and 4 each add two content destinations. Phase 2's **Clean** and **Chores** are the same Tada! integration and the same completion write seen from two angles — Maryann's guided session and the kids' checklist — so they share a client module and build together; Clean is the larger piece and carries the phase. They are complete and verified against a mock, and go live with no Hearth code change once Tada! ships the device-scoped endpoints. Phase 4's **Meals** and **Shopping** are both Enchanted Spoon and share its client; Meals is a thin read while Shopping is the heavier read-write surface, and splitting them would strand Meals in a near-empty phase. Shopping also hosts the Tada! **supplies shelf** (§4.6). If Enchanted Spoon's shopping-list refactor is mid-flight, defer the whole phase (D6, §5.5, Q7). *(Amended: the two shipped separately after all. **Meals landed first and live** — Enchanted Spoon already exposed the `X-API-Key` app-to-app auth path the read needed, so the read-only view was safe to build against the real backend without waiting on the shopping-list refactor. Meals reads `/api/hearth/meals` on that integration path; see `docs/enchanted-spoon-integration.md`. Shopping and the supplies shelf remain a later pass.)*
 
 Phase 5 is conditional on the two-week trial from D7 going well. If the household doesn't use it, the correct outcome is to stop after Phase 4 and leave the Skylight alone.
