@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //   4. Never throw to the view; degrade quietly.
 //
 // Phase 0 ships this as infrastructure; the real upstreams (Calendar, Tada!,
-// MealGenie) plug their fetchers in from Phase 1 onward.
+// Enchanted Spoon) plug their fetchers in from Phase 1 onward.
 
 const STALE_AFTER = 2;
 

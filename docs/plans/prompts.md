@@ -1,6 +1,6 @@
 # Hearth — Build Prompts
 
-Companion to `hearth-spec.md`. Each phase is a self-contained prompt for a Claude CLI session. Run them in order. Do not start a phase until the previous one is deployed and used for at least a few days.
+Companion to `app-spec.md`. Each phase is a self-contained prompt for a Claude CLI session. Run them in order. Do not start a phase until the previous one is deployed and used for at least a few days.
 
 Each phase carries its own **Locked decisions** block. These are repeated deliberately — a CLI session only sees the prompt in front of it, and the badge/reward system in Tada! went unbuilt for four phases because it lived in the spec but never appeared in a checklist.
 
@@ -10,7 +10,7 @@ Each phase carries its own **Locked decisions** block. These are repeated delibe
 
 ## Context
 
-You are building Hearth, a wall-mounted household display for a family of four. It is a read-mostly view layer over three existing APIs: Google Calendar, Tada! (a cleaning/task app), and EnchantedSpoon (a meal planner). It has no database of its own.
+You are building Hearth, a wall-mounted household display for a family of four. It is a **client** — a second frontend, co-equal with the phone — for three existing apps: Google Calendar, Tada! (a cleaning/task app), and Enchanted Spoon (a meal planner). It reads and writes their APIs and keeps no database of its own. (Phase 0 builds only the read-only shell; the write surfaces arrive in later phases.)
 
 This phase builds the frame and gets it on the wall showing nothing useful. That is intentional. Every later phase drops content into a shell that is already deployed, styled, and proven.
 
@@ -188,13 +188,13 @@ The calendar is the one thing this household actually uses on their current Skyl
 
 # Hearth — Phase 1.5: Event Creation
 
-Run after Phase 1 is deployed and in use. Insert into `hearth-build-prompts.md` between Phase 1 and Phase 2. The spec amendments below should be applied to `hearth-spec.md` §2 at the same time.
+Run after Phase 1 is deployed and in use. Insert into `prompts.md` between Phase 1 and Phase 2. The spec amendments below should be applied to `app-spec.md` §2 at the same time.
 
 ---
 
 # Part A — Spec amendments
 
-Two locked decisions change. Replace them in `hearth-spec.md` §2 rather than appending, and keep the rationale — it is the part that stops a future session from reverting them.
+Two locked decisions change. Replace them in `app-spec.md` §2 rather than appending, and keep the rationale — it is the part that stops a future session from reverting them.
 
 ## D2 (amended) — Google Calendar is the system of record. Hearth may create events.
 
@@ -308,57 +308,71 @@ Members and calendars are no longer the same thing — there are more calendars 
 
 ---
 
-# Phase 2 — Tasks
+# Phase 2 — Clean & Chores
 
 ## Context
 
-Two tabs with deliberately different philosophies. Read §D4 and §D5 of the spec before writing code — the asymmetry here is the most important design decision in the project and it looks like an inconsistency if you don't understand why it exists.
+Two sidebar destinations built from one Tada! integration, with deliberately different philosophies. **Clean** is Maryann's guided cleaning session; **Chores** is the kids' checklist. Read D4 and D5 of the spec before writing code — the asymmetry between them is the most important design decision in the project, and it reads as an inconsistency if you don't understand why it exists.
+
+This is the phase that brings the core of Tada! onto the wall: the focus session that surfaces the highest-decay task one at a time. That mechanism is the *anti*-list — it is what prevents the paralysis a backlog would cause (D4). Building it as a list, a queue, or a scoreboard rebuilds the exact problem Tada! was written to solve. Guide, don't list.
+
+Both surfaces write. Task completion is no longer kid-only: Maryann completes her own tasks in the session. This is the phase where Hearth stops being read-only for tasks (D11).
 
 ## Locked decisions
 
-- **Maryann's tab shows done-today only.** Accumulation, no denominator, no progress bar, no percentage, no queue, no "next up," no upcoming tasks. Tada! exists because a list of everything outstanding produces paralysis; putting her ranked queue on a living room wall rebuilds that problem in a place she cannot avoid. If a change to this tab makes it more informative about what remains, that change is wrong.
-- **The kids' tab shows outstanding chores and allows completion.** The asymmetry is intentional. Kids have a tracking problem, not a paralysis problem, and their Tada! surface is already a list.
-- **Kid completion is the only write in the system.** It uses a scoped device token, is limited to `complete_task` on kid accounts, and writes `source="hearth"` to `CompletionLog`.
-- Do not render streaks, badges, or stars. Tada! owns reward state. This screen does not duplicate or summarize it.
-- Do not render dirtiness ratios, decay bands, or priority ranking anywhere in this view.
+- **Clean has two parts: the session and done-today.**
+  - *The session* surfaces **one task at a time** — the single highest-decay task Tada! returns, optionally scoped to a room. No queue, no backlog, no remaining count, no "N of M," no "up next" beyond the one task on screen. (D4)
+  - *Done-today* accumulates completions as they land: no total, no denominator, no progress bar, no percentage. (D4)
+- **Chores shows each kid's outstanding chores and lets them check them off.** The asymmetry with Clean is intentional — kids have a tracking problem, not a paralysis problem, and their Tada! surface is already a list. (D5)
+- **Tada! computes decay and picks the task. Hearth never ranks and never computes decay.** Do not render dirtiness ratios, decay bands, decay scores, or priority numbers anywhere. Show the task, not its score.
+- **Completion is a scoped device-token write, for the kids and Maryann.** Limited to `complete_task`, written with `source="hearth"` to `CompletionLog`. The token may act on behalf of any household member who uses the wall; the acting member is fixed by the surface — Maryann for the Clean session, the column's kid for Chores — not chosen by a separate control (§6.3). This is a broader grant than the original kid-only write, and is acceptable only because the wall is a trusted in-home device (§5.3).
+- **No streaks, badges, or stars.** Tada! owns reward state; this screen neither renders nor summarizes it.
+- **The write list is closed at task completion for this phase.** Supplies flag-low is Phase 4; any other write is a spec amendment (D11).
 
 ## Manual setup
 
-1. In Tada!, confirm or add endpoints for: today's completions for an adult, today's assigned tasks for a kid, and a device-scoped `complete_task`.
-2. Create a Tada! device token scoped to those three operations and to kid accounts only for the write.
-3. Set in Railway: `TADA_API_URL`, `TADA_DEVICE_TOKEN`, and `HEARTH_ADULT_ID` (Maryann's Tada! user id).
-4. Resolve open question Q5: does the kids' tab surface undo, or are wall mistakes corrected on a phone? Answer before item 12.
+1. In Tada!, confirm or add device-callable endpoints for: the next task by decay with an optional room filter, the room list, today's completions for an adult, today's outstanding-and-completed chores per kid, and `complete_task`.
+2. Create a Tada! device token scoped to those reads plus `complete_task`. It must be able to complete as **any household member who uses the wall — the kids and Maryann, not kids only**. Confirm it cannot create or delete task definitions, change settings, or touch reward state.
+3. Decide the **acting-member allowlist**: the set of member ids the wall may complete as (the kids and Maryann's `HEARTH_ADULT_ID`). Anything outside it is rejected. Source it from config or a Tada! household read — do not hardcode ids in a component.
+4. Set in Railway: `TADA_API_URL`, `TADA_DEVICE_TOKEN`, and `HEARTH_ADULT_ID` (Maryann's Tada! user id).
+5. Resolve open question Q5: do Clean and Chores surface undo on a just-completed row, or are wall mistakes corrected on a phone? Answer before checklist item 14.
 
 ## Checklist
 
-1. Build a Tada! client module with the device token, mirroring the Phase 1 Google client's error handling.
-2. Build `GET /api/tasks/done-today` returning today's completions for `HEARTH_ADULT_ID`: task name, room or zone, completion time.
-3. Build `GET /api/tasks/kids` returning today's outstanding and completed chores per kid.
-4. Build `POST /api/tasks/complete` accepting a task id and kid id, calling Tada!'s `complete_task` with `source="hearth"`. Reject any request naming an adult account with a 403.
-5. Build the tab bar: two tabs, Maryann and Kids. Default to Kids — it is the tab that gets used, and Maryann's is a glance rather than a destination.
-6. Build the Maryann tab: completed tasks in reverse-chronological order, each showing name and completion time. Nothing else.
-7. Give the Maryann tab an empty state that reads as an invitation rather than a reproach. No count, no "0 of N."
-8. Build the Kids tab: one column per kid, headed by name and avatar circle in their member color.
-9. Render each chore as a row with an emoji or icon, the chore name, and a large circular tap target on the right.
-10. On tap, optimistically settle the row into a completed state, then fire `POST /api/tasks/complete`. On failure, revert the row and show a brief inline message on that row only — never a global error.
-11. Size tap targets for a child reaching up to a wall. Larger than a phone target, with generous spacing to prevent adjacent mis-taps.
-12. Implement the undo decision from manual setup step 4. If undo is in scope, surface it as a brief affordance on the just-completed row that calls Tada!'s undo endpoint; if not, add a comment in the component recording the decision and why.
-13. Poll both endpoints every 60 seconds. Wire stale indicators per tab.
-14. Reset to the Kids tab after 5 minutes of no interaction.
-15. Verify no streak, badge, star, ratio, or band data appears anywhere in the rendered output.
+1. **Sidebar and routing.** Replace the single Phase 0 "Tasks" placeholder destination and its `/tasks` route with **two** destinations — **Clean** (`/clean`) and **Chores** (`/chores`) — each icon-over-label on the existing rail. The sidebar is now six items: Calendar, Clean, Chores, Lists, Meals, and the still-placeholder sixth (renamed to Shopping in Phase 4). Remove the `/tasks` route.
+2. Build a Tada! client module using the device token, mirroring the Phase 1 Google client's token handling and error behavior.
+3. Build `GET /api/tasks/next?room=<id>` returning the single next task for the session — `{ id, name, room }` — from Tada!'s decay selection. Do not expose the decay score. Omitting `room` means whole-house.
+4. Build `GET /api/tasks/rooms` returning the rooms available to scope a session.
+5. Build `GET /api/tasks/done-today` returning today's completions for `HEARTH_ADULT_ID`: task name, room, completion time.
+6. Build `GET /api/tasks/kids` returning today's outstanding and completed chores per kid.
+7. Build `POST /api/tasks/complete` accepting a task id and an acting-member id. After the device check and before any other work, validate the member against the allowlist from manual setup step 3; reject anything else with 403. Then call Tada!'s `complete_task` with `source="hearth"`.
+8. Build the **Clean** view (`/clean`). A room picker across the top — "whole house" by default, plus one entry per room. Below it, the current session task rendered **large and alone**, with a single big complete target. No queue, no count, no "up next."
+9. On completing the session task: fire `POST /api/tasks/complete` with `HEARTH_ADULT_ID` as the acting member, settle the task into a brief done state, then cross-fade in the next task (re-fetch `GET /api/tasks/next` for the current room). No list reflow.
+10. Give Clean a **rest state**: when `next` returns no task for the scope, show a calm "all caught up" message (name the room when one is picked), not an error and not a reproach. An empty session is success.
+11. Build the Clean **done-today** section: completions in reverse-chronological order, each showing name and time. No count, no "0 of N," no denominator, no progress bar.
+12. Build the **Chores** view (`/chores`): one column per kid, headed by name and an avatar circle in the kid's member color. Each chore is a row with an icon, the chore name, and a large circular tap target.
+13. On tapping a chore: optimistically settle the row into a completed state, then `POST /api/tasks/complete` with that column's kid as the acting member. On failure, revert the row and show a brief inline message on that row only — never a global error.
+14. Implement the Q5 undo decision. If undo is in scope, surface a brief undo affordance on the just-completed row in **both** Clean and Chores — an adult mis-tap mid-session is at least as likely as a kid's — calling Tada!'s undo endpoint. If not, record the decision and its reasoning in a component comment.
+15. Size every tap target for a hand (or a child) reaching up to a wall — larger than a phone target, with generous spacing to prevent adjacent mis-taps.
+16. Poll the reads every 60 seconds via the Phase 0 upstream hook and wire a stale indicator on each surface. Additionally, re-fetch the session task immediately on completion and on room change — the session must not wait up to 60 seconds to advance.
+17. On 5 minutes of no interaction, reset each view's transient state: Clean returns to the whole-house scope; Chores resets its scroll. The app's global resting route remains Calendar (Phase 1).
+18. Verify no decay score, dirtiness ratio, decay band, priority number, streak, badge, or star appears anywhere in the rendered output of either view.
 
 ## Acceptance criteria
 
-1. Maryann's tab shows tasks completed today and nothing about what remains.
-2. Maryann's tab displays no number that could be read as a total or a fraction.
-3. Completing a task on a phone appears on Maryann's tab within 90 seconds.
-4. Each kid's column shows only that kid's chores.
-5. Tapping a chore marks it complete in Tada! and the completion is attributed to the correct kid.
-6. That completion carries `source="hearth"` in `CompletionLog`.
-7. A completion attempt naming an adult account returns 403.
-8. With the network down, a tap reverts the row and shows an inline message — the rest of the screen is unaffected.
-9. Adjacent tap targets cannot be triggered by a single reasonable finger press.
-10. No streak, badge, star, dirtiness ratio, or decay band appears anywhere in this view.
+1. The sidebar shows **Clean** and **Chores** as separate destinations; the single "Tasks" item is gone; `/clean` and `/chores` route correctly.
+2. Clean shows exactly **one** task at a time. No queue, remaining count, denominator, "up next," or decay score is visible anywhere in the view.
+3. Picking a room scopes the surfaced task to that room; selecting "whole house" clears the scope.
+4. Completing the Clean task writes to Tada! attributed to Maryann with `source="hearth"`, the task settles, and the next task appears without waiting for a full poll cycle.
+5. When nothing is due for the current scope, Clean shows a calm rest state — not an error, not a reproach.
+6. Clean's done-today lists today's completions and displays no number that could read as a total or a fraction.
+7. Chores shows one column per kid containing only that kid's chores; tapping completes the chore and attributes it to the correct kid with `source="hearth"`.
+8. A completion request naming a member outside the allowlist returns 403; requests for the kids and for Maryann succeed.
+9. A completion made on a phone appears on the wall — in Clean's done-today or the right Chores column — within 90 seconds.
+10. With the network down, a tap reverts its row and shows an inline message; the rest of the screen is unaffected.
+11. Adjacent tap targets cannot both be triggered by a single reasonable finger press.
+12. No streak, badge, star, dirtiness ratio, decay band, decay score, or priority number appears anywhere in either view.
+13. If undo is in scope, an accidental completion can be undone from the just-completed row in both Clean and Chores.
 
 ---
 
@@ -400,51 +414,62 @@ The smallest phase. Tada!'s lists, rendered for reading. Deliberately kept separ
 
 ---
 
-# Phase 4 — Meals & Recipes
+# Phase 4 — Meals & Shopping
 
 ## Context
 
-Two thin EnchantedSpoon reads, combined into one phase because splitting them would leave a phase with almost nothing in it.
+Two Enchanted Spoon surfaces, plus a Tada! supplies shelf that rides inside Shopping — combined into one phase because Meals alone is too thin to stand on its own. **Meals** is a read-only glance at the week's plan, with a tap-to-open recipe card. **Shopping** is a full read-write client of Enchanted Spoon's list, and it is the substantial half of this phase because it writes.
+
+This phase replaces the original "Recipes" view. Recipe detail no longer lives in a standalone browsable grid; it now appears only as a meal's card inside Meals (D6, amended). "Recipes" as a sidebar destination goes away.
 
 ## Locked decisions
 
-- **Read-only.** No writes to EnchantedSpoon. Adding a recipe to the meal plan from the wall is explicitly out of scope — the moment this screen writes, it needs real per-user auth and stops being a display.
-- Meals shows the current week's plan only. No history, no future weeks beyond next.
-- Meals shows no ingredients, no nutrition, no recipe detail. It answers "what's for dinner," nothing more.
-- **If EnchantedSpoon's shopping-list sync refactor is still in flight, stop and defer this phase.** Do not integrate against a moving surface.
+- **Meals is read-only** (D6). It shows the current week's plan and lets you tap a meal to open its card — ingredients and recipe, the same card Enchanted Spoon renders in its Meal Planner. It does not assign, swap, or edit meals; plan editing stays on the phone. No history, no future weeks beyond next.
+- **Shopping is read-write to Enchanted Spoon** (D6, §5.5): check/uncheck, add, remove, edit. Enchanted Spoon is the single source of truth and holds all list logic. Hearth keeps no local copy, treats Enchanted Spoon's response as truth on every write, and does not attempt its own merge — a simultaneous edit is last-write-wins as Enchanted Spoon resolves it.
+- **The Supplies shelf in Shopping reads and writes Tada!, not Enchanted Spoon** (§4.6). The roster is a Tada! read; flagging a supply low is **one** Tada! write. Tada!'s backend adds the flagged item to the Enchanted Spoon list. **Hearth makes no Enchanted Spoon write for a flagged supply** — one gesture, one upstream.
+- **If Enchanted Spoon's shopping-list sync refactor is still in flight, stop and defer this phase** (D6). Do not integrate against a moving surface.
 
 ## Manual setup
 
-1. Confirm the shopping-list sync refactor has landed. If not, stop here.
-2. Confirm EnchantedSpoon endpoints for current-week meal plan and saved recipes.
-3. Create a EnchantedSpoon read-only device token.
-4. Set in Railway: `EnchantedSpoon_API_URL`, `EnchantedSpoon_DEVICE_TOKEN`.
+1. Confirm Enchanted Spoon's shopping-list sync refactor has landed (Q7). If not, stop here — defer the whole phase, Meals included.
+2. Confirm Enchanted Spoon device-callable endpoints for: the current-week meal plan, a meal's card (ingredients, recipe), the shopping-list read, and shopping-list item mutations (check/uncheck, add, remove, edit).
+3. Confirm Tada! device endpoints for the supplies roster (read) and flag-low (write), **and that flagging low already adds the item to the Enchanted Spoon list in Tada!'s backend** (Q8). If Hearth would have to write to Enchanted Spoon itself to place a flagged supply, stop and revisit — that changes the design and this phase's shape.
+4. Create an Enchanted Spoon device token scoped to the meal plan and card reads plus the shopping-list read and item mutations — nothing else. Extend the existing Phase 2 Tada! token's scope to include the supplies roster read and flag-low write.
+5. Set in Railway: `ENCHANTED_SPOON_API_URL`, `ENCHANTED_SPOON_DEVICE_TOKEN`. (`TADA_*` are already set from Phase 2.)
 
 ## Checklist
 
-1. Build a EnchantedSpoon client module matching the pattern of the Tada! and Google clients.
-2. Build `GET /api/meals` returning the current week's plan: day, meal slot, meal name, recipe id if linked.
-3. Build `GET /api/recipes` returning saved recipes: id, name, category, image if available.
-4. Build `GET /api/recipes/[id]` returning name, ingredients, instructions.
-5. Build the Meals view: seven day-columns for the current week, meals within each. Today's column is visually distinct.
-6. Give Meals an empty state for unplanned days that does not read as an error.
-7. Add a next-week toggle. Nothing beyond that.
-8. Build the Recipes view: a scannable grid of recipe cards with name and category.
-9. Add category filtering if EnchantedSpoon's categories are clean enough to be useful; skip it if they are not.
-10. Build the recipe detail panel: name, ingredients, instructions, at wall-readable type size. Opens over the grid, dismissed by tapping outside.
-11. Verify no control anywhere writes to EnchantedSpoon.
-12. Poll both every 5 minutes — meal plans change far less often than tasks and do not warrant a 60-second poll.
-13. Close any open recipe panel and reset filters after 5 minutes of no interaction.
+1. **Sidebar and routing.** Replace the placeholder "Recipes" destination and its `/recipes` route with **Shopping** (`/shopping`), and bring **Meals** (`/meals`) live in place of its placeholder. The sidebar is now the full six: Calendar, Clean, Chores, Lists, Meals, Shopping. Remove the `/recipes` route and do not build a standalone recipes grid.
+2. Build an Enchanted Spoon client module matching the pattern of the Tada! and Google clients — token handling server-side, error behavior consistent with them.
+3. Build `GET /api/meals` returning the current week's plan: day, meal slot, meal name, and a card id where a recipe is linked.
+4. Build `GET /api/meals/[id]` returning that meal's card: name, ingredients, recipe/instructions — the data Enchanted Spoon's Meal Planner card uses.
+5. Build the **Meals** view (`/meals`): seven day-columns for the current week, today's column visually distinct, a calm empty state for unplanned days (not an error), and a next-week toggle — nothing beyond that.
+6. Tapping a meal opens its card over the grid — ingredients and recipe at wall-readable type size, dismissed by tapping outside. Read-only.
+7. Build `GET /api/shopping` returning the current list with its sections/categories and each item's state.
+8. Build the shopping write handlers, each verifying the device token first and attaching the Enchanted Spoon token server-side (§3.2): add an item, check/uncheck and edit an item, remove an item. Each returns Enchanted Spoon's resulting state; the client re-renders from that response.
+9. Build the **Shopping** view (`/shopping`): the list grouped by Enchanted Spoon's existing sections, each item a row with a large check target and wall-sized add/edit/remove controls. Apply writes optimistically, then reconcile against the handler's response; on conflict, Enchanted Spoon wins — no local merge, no lost update beyond one reconcile.
+10. Build `GET /api/supplies` returning the Tada! supplies roster and which items are currently flagged low / already on the list.
+11. Build `POST /api/supplies/flag` — flag one supply low via a single Tada! call. **Do not write to Enchanted Spoon in this handler.** The flagged item reaches the shopping list through Tada!'s backend and appears on the next `GET /api/shopping`.
+12. Build the **Supplies shelf** below the list in the Shopping view: the roster as tap-to-flag-when-low chips, kept visually secondary to the list. A supply already flagged or already on the list is shown as such and not offered again until it's bought.
+13. On flagging: optimistically mark the chip flagged, `POST /api/supplies/flag`; on failure, revert and show an inline message. Expect the resulting shopping-list item to appear on a following poll, not instantly — it's a Tada! backend add and may lag one cycle.
+14. Verify Meals issues no write to Enchanted Spoon, and that the Supplies shelf writes only to Tada! — never to Enchanted Spoon.
+15. Polling: poll Meals every 5 minutes (plans change slowly). Poll the shopping list and supplies roster every 60 seconds and re-fetch immediately after any write — a shared kitchen list is edited often, and a multi-minute lag between the wall and a phone is the annoyance this view exists to remove. Wire stale indicators.
+16. On 5 minutes of no interaction: close any open meal card, reset Meals to the current week, and reset the Shopping scroll position.
 
 ## Acceptance criteria
 
-1. The current week's plan matches EnchantedSpoon exactly.
-2. Changing the plan on a phone appears on the wall within 6 minutes.
-3. Today's column is visually distinct.
-4. Unplanned days render calmly, not as errors.
-5. All saved recipes appear in the grid.
-6. Recipe detail is readable from six feet.
-7. No request from this app mutates EnchantedSpoon state. Verify by reviewing every route handler added in this phase.
+1. The sidebar shows **Shopping**, not Recipes; `/shopping` routes; the `/recipes` route and any standalone recipes grid are gone; Meals is live at `/meals`.
+2. The Meals view matches Enchanted Spoon's current-week plan exactly; today's column is distinct; unplanned days render calmly.
+3. Tapping a meal opens its card with ingredients and recipe, readable from six feet; the card offers no editing.
+4. Changing the plan on a phone appears on the wall within about six minutes.
+5. The Shopping list matches Enchanted Spoon, grouped by its own sections.
+6. Checking, adding, editing, or removing an item on the wall writes to Enchanted Spoon and shows on a phone within a poll; the reverse also holds.
+7. Two near-simultaneous edits resolve to Enchanted Spoon's state, with no duplicate or lost update on the wall beyond one reconcile.
+8. Tapping a low supply flags it in Tada! and the item appears on the shopping list within a poll or two. Hearth issues exactly one write — to Tada! — and **no** Enchanted Spoon write for that action; verify in the handler/network logs.
+9. An already-flagged supply is not offered again until it's bought or removed.
+10. Meals writes nothing to Enchanted Spoon, and the Supplies shelf writes nothing to Enchanted Spoon (only Tada!). Verify by reviewing every route handler added in this phase.
+11. With the network down, a shopping write reverts its row or control with an inline message; the rest of the screen is unaffected.
+12. Neither the Enchanted Spoon token nor the Tada! token appears in any client bundle.
 
 ---
 

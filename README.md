@@ -1,11 +1,14 @@
 # Hearth
 
-A wall-mounted, always-on household display. It surfaces the family calendar,
-Tada!'s tasks and lists, and MealGenie's meal plan and recipes — read-mostly,
-for a screen viewed six to ten feet away.
+A wall-mounted, always-on household surface. It surfaces the family calendar,
+Tada!'s cleaning and lists, and Enchanted Spoon's meal plan and shopping list —
+for a screen viewed six to ten feet away and a hand reaching up to it.
 
-Hearth is a **view layer**. It has no database. MealGenie and Tada! own the
-real data and logic; Hearth reads three APIs and renders them. See
+Hearth is a **client**, not a store — a second frontend, co-equal with the
+phone, that the family can run Tada! and Enchanted Spoon from without picking up
+a device. It has no database. Tada! and Enchanted Spoon own the real data and
+logic (decay ranking, reward state, meal plans, shopping-list math); Hearth
+reads and writes their APIs and renders them, computing nothing itself. See
 [`docs/app-spec.md`](docs/app-spec.md) for the full spec and locked decisions,
 and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
 
@@ -14,8 +17,10 @@ stale-data contract, kiosk hardening, deploy scaffolding) is in place and
 hardened; device authorization lives in the route and page logic, not middleware
 (see [Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
 family's Google calendars and can now **create** events from the wall — with
-per-member tag colors and countdowns (see [Calendar](#calendar-phase-1)); Tasks,
-Lists, Meals, and Recipes still render placeholders and land phase by phase.
+per-member tag colors and countdowns (see [Calendar](#calendar-phase-1)); the
+remaining views — Clean, Chores, Lists, Meals, and Shopping — still render
+placeholders and land phase by phase. (The plan was reworked: Tasks split into
+**Clean** + **Chores**, and Recipes was replaced by **Shopping** — see the spec.)
 
 ## Stack
 
@@ -102,8 +107,8 @@ components, and never reaches the browser bundle.
 | `MEMBERS` | 1.5 | JSON array of `{ key, name, color }` — the canonical taggable people. |
 | `CALENDAR_MAP` | 1 · 1.5 | JSON map of calendar id → `{ label, writable, defaultMemberKey? }`. `writable` allowlists both the picker and the write path. |
 | `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |
-| `TADA_API_URL` / `TADA_DEVICE_TOKEN` / `HEARTH_ADULT_ID` | 2 | Tada! reads + the one scoped write. |
-| `MEALGENIE_API_URL` / `MEALGENIE_DEVICE_TOKEN` | 4 | MealGenie read-only. |
+| `TADA_API_URL` / `TADA_DEVICE_TOKEN` / `HEARTH_ADULT_ID` | 2 · 4 | Tada! reads (Clean session, rooms, completions, chores, lists; supplies roster) + scoped writes: completions in Phase 2, supply flag-low in Phase 4 (surfaced in Shopping). |
+| `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon — Meals read-only, Shopping read-write. |
 
 ## Calendar (Phase 1)
 
