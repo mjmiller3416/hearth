@@ -24,15 +24,27 @@ export function memberConcerns(event: CalendarEvent, memberKey: string): boolean
   return event.defaultMemberKey === memberKey;
 }
 
+// A 4+-member event is baked with the literal member slugs, not the "everyone"
+// slug; EventChip's `bandsFor` collapses anything past this cap to the single
+// "everyone" fill. The Family filter must mirror that exact rule so it and the
+// chip's paint never disagree — hence the ">cap" clause alongside the baked
+// everyone slug (which covers untagged family-calendar events). Keep in sync with
+// EventChip.BAND_CAP.
+const EVERYONE_BAND_CAP = 3;
+
 /**
  * Whether an event is a whole-family / shared one — the "Family" filter chip
  * predicate (Phase 2 #2). True exactly when it resolves to the shared "everyone"
- * treatment: an untagged event on the family calendar, or one assigned to four
- * or more people. Reads straight off the baked band colors so the filter and the
- * chip's fill never disagree.
+ * treatment: an untagged event on the family calendar (baked as the "everyone"
+ * slug), or one assigned to four or more people (baked as 4+ member slugs, which
+ * the chip collapses to "everyone"). Mirrors what EventChip actually paints so
+ * the filter and the chip's fill never disagree.
  */
 export function concernsFamily(event: CalendarEvent): boolean {
-  return event.colors.includes(EVERYONE_COLOR);
+  return (
+    event.colors.includes(EVERYONE_COLOR) ||
+    event.colors.length > EVERYONE_BAND_CAP
+  );
 }
 
 /**

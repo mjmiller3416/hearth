@@ -302,7 +302,12 @@ export async function DELETE(req: Request) {
   if (hearthGroupId) {
     try {
       const { deleted, failures } = await deleteHearthGroup(hearthGroupId);
-      return NextResponse.json({ ok: failures.length === 0, deleted, failures });
+      // Answer non-2xx when any copy failed to delete: the client only inspects
+      // the HTTP status to decide whether to un-hide the optimistically removed
+      // event. A 200 here would leave a still-live event hidden on the wall until
+      // a full reload (the copies still exist on the calendars that failed).
+      const ok = failures.length === 0;
+      return NextResponse.json({ ok, deleted, failures }, { status: ok ? 200 : 502 });
     } catch (err) {
       console.error("[api/calendar/events] delete failed:", err);
       return NextResponse.json({ error: "Couldn't delete the event." }, { status: 502 });
@@ -329,6 +334,8 @@ export async function DELETE(req: Request) {
       status === 403
         ? "Hearth can't delete on that calendar — share it with edit access."
         : "Couldn't delete the event.";
-    return NextResponse.json({ error: message }, { status: 502 });
+    // Surface the real status (403 for an unshared calendar) rather than a blanket
+    // 502, so it matches the message and isn't a misleading Bad Gateway.
+    return NextResponse.json({ error: message }, { status });
   }
 }

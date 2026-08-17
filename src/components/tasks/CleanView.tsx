@@ -84,7 +84,7 @@ export function CleanView() {
     };
   }, [roomId]);
 
-  const { data, isStale, lastUpdated, refetch } = useUpstream<CleanData>(fetcher, {
+  const { data, isStale, lastUpdated, refetch, isLoading } = useUpstream<CleanData>(fetcher, {
     intervalMs: 60_000,
     enabled: mounted,
   });
@@ -182,7 +182,11 @@ export function CleanView() {
         ) : undefined
       }
     >
-      {!configured ? (
+      {isLoading ? (
+        // Before the first poll resolves, stay quiet — never flash "not
+        // connected" while we simply haven't loaded yet.
+        null
+      ) : !configured ? (
         <NotConnected />
       ) : (
         <div className="flex h-full gap-10">
@@ -195,7 +199,11 @@ export function CleanView() {
                   onUndo={handleUndo}
                 />
               ) : task ? (
-                <SessionTask task={task} onComplete={handleComplete} disabled={false} />
+                // Disable the Done target when the acting adult can't be resolved
+                // (HEARTH_ADULT_ID missing from TADA_MEMBERS) — otherwise it looks
+                // active but every tap is a silent no-op (handleComplete bails on
+                // !adult). Disabled makes the misconfiguration visible instead.
+                <SessionTask task={task} onComplete={handleComplete} disabled={!adult} />
               ) : (
                 <RestState roomName={scopedRoomName} />
               )}

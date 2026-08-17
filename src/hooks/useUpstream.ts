@@ -50,16 +50,24 @@ export function useUpstream<T>(
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
   const failuresRef = useRef(0);
+  // Generation guard: only the most-recently-started run may commit. A refetch on
+  // scope change (calendar month/week nav, Clean room switch) can overlap a poll
+  // in flight, and without this a slower earlier response could land last and
+  // overwrite the newer scope's data (a stale room showing under a pressed pill).
+  const runIdRef = useRef(0);
 
   const run = useCallback(async () => {
+    const myId = ++runIdRef.current;
     try {
       const next = await fetcherRef.current();
+      if (myId !== runIdRef.current) return; // superseded by a newer run
       failuresRef.current = 0;
       setData(next);
       setLastUpdated(Date.now());
       setIsStale(false);
       setError(null);
     } catch (err) {
+      if (myId !== runIdRef.current) return; // superseded by a newer run
       // Retain the last good `data`; only escalate to stale after N failures.
       failuresRef.current += 1;
       setError(err);

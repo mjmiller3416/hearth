@@ -47,7 +47,7 @@ export function ChoresView() {
     return res.json();
   }, []);
 
-  const { data, isStale, lastUpdated, refetch } = useUpstream<ChoresPayload>(fetcher, {
+  const { data, isStale, lastUpdated, refetch, isLoading } = useUpstream<ChoresPayload>(fetcher, {
     intervalMs: 60_000,
     enabled: mounted,
   });
@@ -196,7 +196,11 @@ export function ChoresView() {
 
   return (
     <ViewFrame title="Chores" isStale={isStale} lastUpdated={lastUpdated}>
-      {!configured ? (
+      {isLoading ? (
+        // Before the first poll resolves, stay quiet — never flash "not
+        // connected" while we simply haven't loaded yet.
+        null
+      ) : !configured ? (
         <NotConnected />
       ) : columns.length === 0 ? (
         <div className="flex h-full items-center justify-center">
