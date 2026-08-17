@@ -17,10 +17,14 @@ export const appConfig = {
 // is locked to green by spec D3.
 
 // ── Navigation ──────────────────────────────────────────────────────────────
-// The sidebar is the whole navigation model: five destinations matching the
-// household's existing Skylight mental model (spec §4). Icons are mapped in the
-// Sidebar component so this stays pure data, importable from server code.
-export type NavId = "calendar" | "tasks" | "lists" | "meals" | "recipes";
+// The sidebar is the whole navigation model (spec §4). As of Phase 2 the single
+// "Tasks" destination is split into two Tada! surfaces with deliberately
+// different philosophies — Maryann's guided **Clean** session and the kids'
+// **Chores** checklist (spec §4.2–4.3, D4/D5) — bringing the sidebar to six.
+// "Recipes" stays a placeholder until Phase 4 renames it to Shopping. Icons are
+// mapped in the Sidebar component so this stays pure data, importable from server
+// code.
+export type NavId = "calendar" | "clean" | "chores" | "lists" | "meals" | "recipes";
 
 export interface NavItem {
   id: NavId;
@@ -32,7 +36,8 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { id: "calendar", label: "Calendar", href: "/calendar", phase: 1 },
-  { id: "tasks", label: "Tasks", href: "/tasks", phase: 2 },
+  { id: "clean", label: "Clean", href: "/clean", phase: 2 },
+  { id: "chores", label: "Chores", href: "/chores", phase: 2 },
   { id: "lists", label: "Lists", href: "/lists", phase: 3 },
   { id: "meals", label: "Meals", href: "/meals", phase: 4 },
   { id: "recipes", label: "Recipes", href: "/recipes", phase: 4 },

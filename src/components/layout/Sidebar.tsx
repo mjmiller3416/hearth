@@ -5,19 +5,22 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   Calendar,
-  ListChecks,
   ListTodo,
   Settings,
+  SprayCan,
+  SquareCheckBig,
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { NAV, type NavId } from "@/lib/config";
 
 // Icons live here (not in config.ts) so config stays pure data importable from
-// server code. Icon over label, vertical rail on the left (Phase 0 #4).
+// server code. Icon over label, vertical rail on the left (Phase 0 #4). Phase 2
+// splits Tasks into Clean (the cleaning session) and Chores (the kids' list).
 const ICONS: Record<NavId, LucideIcon> = {
   calendar: Calendar,
-  tasks: ListChecks,
+  clean: SprayCan,
+  chores: SquareCheckBig,
   lists: ListTodo,
   meals: UtensilsCrossed,
   recipes: BookOpen,

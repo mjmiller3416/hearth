@@ -246,6 +246,8 @@ Task completion is the shared write primitive for both Tada! surfaces: kids chec
 
 **Undo interaction:** Phase 9 of Tada! adds undo for accidental completions, scoped to today, surfaced in the completion toast and in Done Today. A tap on the wall is *more* likely to be accidental than a tap on a phone — and now that adults complete tasks here too, a mis-tap mid-session is at least as likely as a kid's. Hearth should either surface the same undo affordance on the completed row (Clean and Chores both), or explicitly accept that wall mistakes get corrected on a phone. Decide this during Phase 2; do not leave it implicit. (See Q5.)
 
+*Resolved (Phase 2, Q5): **undo on the just-completed row in both views.** Clean's completed task settles into a brief done state with an Undo; each Chores row offers a brief Undo after it's checked. Both call `POST /api/tasks/undo`, scoped by the same acting-member allowlist as completion. A wall tap is the more mis-tap-prone gesture, so correcting it should not require picking up a phone.*
+
 ### 5.4 Enchanted Spoon — Meals (read-only)
 
 Current week's meal plan, plus each meal's **card** (ingredients, recipe) on tap — the data Enchanted Spoon already returns for its Meal Planner. Read-only. Editing the plan stays on the phone (D6). If Enchanted Spoon's in-flight shopping-list sync refactor is still moving when Phase 4 starts, it affects §5.5 below — but Meals and Shopping ship together, so delay the whole phase rather than integrating against a shifting surface.

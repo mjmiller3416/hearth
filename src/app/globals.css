@@ -110,3 +110,15 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* Content updates cross-fade rather than slide or pop (spec §7 — motion almost
+   none; anything that moves in peripheral vision all day becomes an irritant).
+   The Clean session's task swaps use this via an animation with a changing key. */
+@keyframes hearth-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

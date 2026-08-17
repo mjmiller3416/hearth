@@ -12,15 +12,18 @@ reads and writes their APIs and renders them, computing nothing itself. See
 [`docs/app-spec.md`](docs/app-spec.md) for the full spec and locked decisions,
 and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
 
-**Status:** Phase 1.5 — Calendar with event creation. The shell (routing, the
-stale-data contract, kiosk hardening, deploy scaffolding) is in place and
-hardened; device authorization lives in the route and page logic, not middleware
-(see [Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
-family's Google calendars and can now **create** events from the wall — with
-per-member tag colors and countdowns (see [Calendar](#calendar-phase-1)); the
-remaining views — Clean, Chores, Lists, Meals, and Shopping — still render
-placeholders and land phase by phase. (The plan was reworked: Tasks split into
-**Clean** + **Chores**, and Recipes was replaced by **Shopping** — see the spec.)
+**Status:** Phase 2 — Clean & Chores. The shell (routing, the stale-data
+contract, kiosk hardening, deploy scaffolding) is in place and hardened; device
+authorization lives in the route and page logic, not middleware (see
+[Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
+family's Google calendars and can create/edit events from the wall (see
+[Calendar](#calendar-phase-1)). Phase 2 adds **Clean** (Maryann's guided
+cleaning session) and **Chores** (the kids' checklist), both driven by Tada! (see
+[Clean & Chores](#clean--chores-phase-2)) — this is where Hearth stops being
+read-only and begins **writing** task completions. The remaining views — Lists,
+Meals, and Shopping — still render placeholders and land phase by phase. (The
+plan was reworked: Tasks split into **Clean** + **Chores**, and Recipes was
+replaced by **Shopping** — see the spec.)
 
 ## Stack
 
@@ -85,8 +88,20 @@ As of Phase 1.5 the device token also gates a **write** path: `POST
 `requireDevice()` first, before parsing the body, and **allowlists the target
 calendar** — a create is rejected unless its `calendarId` is present in
 `CALENDAR_MAP` with `writable: true`, so a crafted request cannot write to an
-arbitrary calendar the household account happens to have access to. Creation is
-the only write; there is no edit or delete path (spec D2, amended).
+arbitrary calendar the household account happens to have access to.
+
+Phase 2 adds a second write path — task completion. `POST /api/tasks/complete`
+and `POST /api/tasks/undo` write to Tada! **as** a household member (Maryann in
+the Clean session, a kid in Chores). The member is *attribution, not
+authentication*: the device token carries the authority, and the acting member
+only says whom to credit (spec §6.3). Both handlers call `requireDevice()` first,
+then — before any write — **validate the acting member against an allowlist**
+(the kids and Maryann, from `TADA_MEMBERS`); a request naming anyone else is
+rejected `403`. Completions are stamped `source="hearth"`. This is a broader
+grant than the old kid-only write and is acceptable only because the wall is a
+trusted in-home device — it would **not** be acceptable on a public or portable
+one (spec §5.3). The write list is closed at completion + undo for this phase;
+anything more is a spec amendment (D11).
 
 The only unauthenticated surfaces are `/setup` (the pairing route, in the
 `app/(public)/` group) and `/health` (a literal `200`). **Any new page or route
@@ -107,7 +122,10 @@ components, and never reaches the browser bundle.
 | `MEMBERS` | 1.5 | JSON array of `{ key, name, color }` — the canonical taggable people. |
 | `CALENDAR_MAP` | 1 · 1.5 | JSON map of calendar id → `{ label, writable, defaultMemberKey? }`. `writable` allowlists both the picker and the write path. |
 | `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |
-| `TADA_API_URL` / `TADA_DEVICE_TOKEN` / `HEARTH_ADULT_ID` | 2 · 4 | Tada! reads (Clean session, rooms, completions, chores, lists; supplies roster) + scoped writes: completions in Phase 2, supply flag-low in Phase 4 (surfaced in Shopping). |
+| `TADA_API_URL` / `TADA_DEVICE_TOKEN` | 2 · 4 | Tada! base URL + device token. Reads (Clean session, rooms, completions, chores; supplies roster in Phase 4) + scoped writes: completions in Phase 2, supply flag-low in Phase 4. |
+| `TADA_MEMBERS` | 2 | JSON array of `{ memberKey, tadaUserId, role }` — the people the wall may complete tasks as (the acting-member allowlist). `memberKey` links to `MEMBERS` for name + color; `role` is `adult` or `kid`. |
+| `HEARTH_ADULT_ID` | 2 | Maryann's Tada! user id — whose session the Clean view is, and whose completions done-today shows. |
+| `HEARTH_TASKS_MOCK` | 2 | Local dev only — serves deterministic synthetic Tada! data so Clean & Chores work without the real API. Ignored in production. |
 | `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon — Meals read-only, Shopping read-write. |
 
 ## Calendar (Phase 1)
@@ -164,6 +182,45 @@ read only in the route handler and never reaches the browser.
 serve deterministic synthetic events, so the grid, filters, day panel, and week
 view can be exercised offline. It is ignored in production builds even if set,
 so it can never reach the wall.
+
+## Clean & Chores (Phase 2)
+
+Two sidebar destinations built from one Tada! integration, with deliberately
+different philosophies (spec §4.2–4.3, D4/D5):
+
+- **Clean** is Maryann's guided cleaning session. A room picker scopes it; below,
+  Tada! surfaces the single highest-decay task **one at a time** — large and
+  alone, with a big complete target. Completing it cross-fades in the next task.
+  There is **no queue, no backlog, no remaining count, no "up next"** — that
+  restraint is the whole point (D4): the focus session is the *anti-list*, and
+  showing the quantity of undone work would rebuild the paralysis Tada! exists to
+  prevent. Beside it, **done-today** celebrates completions as they land, with
+  **no total, denominator, or progress bar**. When nothing is due, it rests on a
+  calm "all caught up," never a reproach.
+- **Chores** is the kids' checklist — one column per kid in their member color,
+  each chore a row with a large tap target. The asymmetry with Clean is
+  intentional: kids have a tracking problem, not a paralysis one, so their
+  surface *is* a list they can check off. No streaks, badges, or stars — Tada!
+  owns reward state and this screen neither renders nor summarizes it.
+
+Both surfaces **write**. Completing a task posts to Tada! attributed to the
+acting member (Maryann for Clean, the column's kid for Chores) with
+`source="hearth"`; a mis-tap can be undone from the just-completed row within the
+day (Q5). Hearth never computes decay or ranks anything — Tada! picks the task,
+Hearth renders the result and writes the completion. Nothing in either view
+exposes a decay score, dirtiness ratio, priority number, streak, or badge.
+
+**Local UI without Tada!:** set `HEARTH_TASKS_MOCK=1` in `.env.local` to serve
+deterministic synthetic tasks, rooms, and chores — the session advances, done-
+today fills, and undo reverses, all in dev-server memory. Ignored in production.
+
+**Upstream setup:** the real integration needs device-scoped Tada! endpoints
+(and a completion `source` of `hearth`) that the current Tada! backend does not
+yet expose — a static device token, an acting-member override, a single
+next-task-by-room read, and a per-kid chores read. Those are specified precisely
+in [`docs/tada-integration-requirements.md`](docs/tada-integration-requirements.md).
+Until they land, `/clean` and `/chores` degrade calmly to a "not connected"
+state (spec §6.2), and local development runs on `HEARTH_TASKS_MOCK=1`.
 
 ## Target device
 
