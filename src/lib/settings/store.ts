@@ -103,8 +103,39 @@ export async function readSettings(): Promise<Settings> {
 async function writeSettings(next: Settings): Promise<void> {
   const dir = await dataDir();
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, "settings.json"), JSON.stringify(next), "utf8");
+  const file = path.join(dir, "settings.json");
+  const data = JSON.stringify(next);
+  // Write to a temp file then atomically rename over the target. A bare
+  // writeFile truncates-then-rewrites, so a concurrent readSettings (another
+  // device polling, or a separate RSC/route module graph in dev) could read a
+  // torn/empty file, hit the JSON.parse catch, and momentarily render every
+  // custom color back to its default. On the Linux deploy target rename over an
+  // open file is always atomic and safe.
+  const tmp = `${file}.${process.pid}.tmp`;
+  await fs.writeFile(tmp, data, "utf8");
+  try {
+    await fs.rename(tmp, file);
+  } catch (err) {
+    // Windows throws EPERM renaming over a file another handle has open for
+    // reading (a concurrent poll during local `dev`); POSIX never does. Fall back
+    // to a direct overwrite so the save still lands — this only reopens the small
+    // torn-read window on Windows dev, matching the pre-existing behavior there.
+    if ((err as NodeJS.ErrnoException)?.code === "EPERM") {
+      await fs.writeFile(file, data, "utf8");
+      await fs.rm(tmp, { force: true }).catch(() => {});
+    } else {
+      await fs.rm(tmp, { force: true }).catch(() => {});
+      throw err;
+    }
+  }
 }
+
+// Serialize writes within this instance so two near-simultaneous color picks
+// (wall + laptop) don't do overlapping read-modify-write cycles and lose one
+// update. Each setColorOverride chains after the previous one's completion. This
+// closes the race for the common single-instance deploy; a multi-replica setup
+// would still need a shared lock, which is out of scope (Hearth runs one instance).
+let writeChain: Promise<unknown> = Promise.resolve();
 
 /** The set of palette slugs a user may recolor: each member's, plus "everyone". */
 export function customizableSlugs(): string[] {
@@ -123,16 +154,25 @@ export async function setColorOverride(
   slug: string,
   swatchId: string | null,
 ): Promise<Settings> {
-  const current = await readSettings();
-  const nextColors = { ...current.colorsBySlug };
-  if (swatchId === null) {
-    delete nextColors[slug];
-  } else {
-    nextColors[slug] = swatchId;
-  }
-  const next: Settings = { colorsBySlug: nextColors };
-  await writeSettings(next);
-  return next;
+  const apply = async (): Promise<Settings> => {
+    const current = await readSettings();
+    const nextColors = { ...current.colorsBySlug };
+    if (swatchId === null) {
+      delete nextColors[slug];
+    } else {
+      nextColors[slug] = swatchId;
+    }
+    const next: Settings = { colorsBySlug: nextColors };
+    await writeSettings(next);
+    return next;
+  };
+  // Queue behind any in-flight write so each read-modify-write runs to completion
+  // before the next begins — no lost updates within this instance. A prior write's
+  // failure must not block this one, so run `apply` whether the chain settled
+  // fulfilled or rejected.
+  const run = writeChain.then(apply, apply);
+  writeChain = run.catch(() => {}); // keep the chain alive past any failure
+  return run;
 }
 
 export function isCustomizableSlug(slug: string): boolean {
