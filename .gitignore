@@ -39,3 +39,6 @@ yarn-error.log*
 
 # local settings store fallback (when HEARTH_DATA_DIR is unset)
 /.hearth-data/
+
+# personal VS Code workspace (points at a machine-local references folder)
+/hearth.code-workspace
