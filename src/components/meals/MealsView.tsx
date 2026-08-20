@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Check } from "lucide-react";
 import { ViewFrame } from "@/components/layout/ViewFrame";
 import { useUpstream } from "@/hooks/useUpstream";
 import { useIdleReset } from "@/hooks/useIdleReset";
 import type { MealPlanPayload, PlannedMeal } from "@/lib/spoon/types";
 import { MealCardPanel, MealMeta } from "./MealCardPanel";
+import { MealImage } from "./mealVisuals";
 
 // The Meals view (Phase 4, spec §4.5, D6) — a glanceable "what's for dinner."
 // The week's plan from Enchanted Spoon, each meal a tile showing its day and
@@ -39,33 +41,55 @@ function planDay(iso: string | null): { label: string; sub: string | null } {
 
 function MealTile({ meal, onOpen }: { meal: PlannedMeal; onOpen: () => void }) {
   const day = planDay(meal.scheduledDate);
+  const isToday = day.label === "Today";
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={`Open ${meal.name}`}
       className={[
-        "flex h-full flex-col rounded-3xl bg-surface p-6 text-left",
-        "shadow-[inset_0_0_0_1px_var(--color-hairline)] transition-transform active:scale-[0.99]",
-        meal.isCompleted ? "opacity-60" : "",
+        "flex h-full flex-col overflow-hidden rounded-3xl bg-surface text-left",
+        "shadow-[0_2px_14px_rgba(87,55,34,0.07)] transition-transform active:scale-[0.99]",
+        // "Today" gets an accent ring so tonight's dinner draws the eye across
+        // the room; every other tile a quiet hairline.
+        isToday ? "ring-2 ring-accent/45" : "ring-1 ring-hairline/70",
+        meal.isCompleted ? "opacity-70" : "",
       ].join(" ")}
     >
-      <div className="mb-4 flex items-baseline justify-between gap-3">
-        <span className="font-display text-title leading-none text-ink">{day.label}</span>
-        {day.sub && <span className="text-label text-ink-faint">{day.sub}</span>}
+      {/* Picture surface: real photo when Enchanted Spoon has one, else a colored
+          tone placeholder with a food glyph. */}
+      <div className="relative h-48 w-full shrink-0">
+        <MealImage
+          id={meal.mealId}
+          name={meal.name}
+          imageUrl={meal.imageUrl}
+          iconClassName="size-24"
+        />
+        <span
+          className={[
+            "absolute left-4 top-4 rounded-full px-4 py-1.5 text-label font-medium leading-none shadow-sm",
+            isToday ? "bg-coral text-white" : "bg-surface/90 text-ink backdrop-blur-sm",
+          ].join(" ")}
+        >
+          {day.sub ? `${day.label} · ${day.sub}` : day.label}
+        </span>
+        {meal.isCompleted && (
+          <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-surface/90 px-3 py-1.5 text-label font-medium leading-none text-teal-strong shadow-sm backdrop-blur-sm">
+            <Check className="size-5" strokeWidth={2.75} aria-hidden />
+            Made
+          </span>
+        )}
       </div>
 
-      <h2 className="font-display text-display leading-tight text-ink">{meal.name}</h2>
-      {meal.mainRecipeName && meal.mainRecipeName !== meal.name && (
-        <p className="mt-1 text-body text-ink-soft">{meal.mainRecipeName}</p>
-      )}
-
-      <div className="mt-auto pt-5">
-        {meal.isCompleted ? (
-          <span className="text-label text-ink-faint">Made ✓</span>
-        ) : (
-          <MealMeta totalTime={meal.totalTime} sideDishCount={meal.sideDishCount} />
+      {/* Content */}
+      <div className="flex flex-1 flex-col p-6">
+        <h2 className="font-display text-title leading-tight text-ink">{meal.name}</h2>
+        {meal.mainRecipeName && meal.mainRecipeName !== meal.name && (
+          <p className="mt-1 line-clamp-1 text-body text-ink-soft">{meal.mainRecipeName}</p>
         )}
+        <div className="mt-auto pt-5">
+          <MealMeta totalTime={meal.totalTime} sideDishCount={meal.sideDishCount} />
+        </div>
       </div>
     </button>
   );

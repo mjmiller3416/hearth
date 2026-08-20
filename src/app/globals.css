@@ -22,6 +22,25 @@
   --color-hairline: #e4ddcc;
   --color-hairline-strong: #d6cdb8;
 
+  /* ── Accent palette (ported from Tada — "a splash of color") ───────────────
+     Tada's anchor triad on Hearth's warm ground: purple = primary/highlight,
+     teal = ingredients/success, coral = today/warmth. Each has a soft tint for
+     chips and a strong variant for text/hover. Consumed ONLY through Tailwind
+     utilities (bg-accent-soft, text-teal-strong, ring-accent, …) — which is why
+     they belong in @theme (utility-referenced tokens survive tree-shaking; the
+     dynamic tone tints below don't, so those live in :root). Used in Meals only
+     for now; the rest of the app stays on the quiet ground palette until a wider
+     rollout. See the Tada design system at ../tada-cleaning-app. ── */
+  --color-accent: #8354c9; /* purple — primary action / highlight */
+  --color-accent-strong: #6c3fac;
+  --color-accent-soft: #efe6fb;
+  --color-teal: #17a893; /* ingredients / success */
+  --color-teal-strong: #128a76;
+  --color-teal-soft: #d9f4ee;
+  --color-coral: #e15b54; /* today / warmth */
+  --color-coral-strong: #c14840;
+  --color-coral-soft: #fbe4e1;
+
   /* Member colors live in the plain :root block below, NOT here — see the note
      there. Everything in @theme is consumed by a Tailwind utility (bg-*, text-*,
      border-*); the member colors are not, so they must not sit in @theme. */
@@ -76,6 +95,35 @@
      matching that calendar's orange rather than four slivers. */
   --color-neutral: #c9bfa8; /* light warm gray — takes dark ink */
   --color-everyone: #f09300; /* Miller Family orange — takes dark ink */
+}
+
+/* ============================================================================
+   Food tones (Meals, Phase 4+). Soft tints from Tada's chip palette that give
+   each meal a distinct, appetizing color on its card and open card. Applied
+   DYNAMICALLY via `var(--tone-<name>-bg)` in inline styles (image placeholders,
+   gradients, accent dots), so — like the member colors — they must live in a
+   plain :root and NOT in @theme, which Tailwind v4 tree-shakes for tokens it
+   can't see referenced by a generated utility. Each tone is a (bg, ink) pair;
+   the card derives its gradient from the two with color-mix(). Keyed on mealId,
+   so a meal keeps its color from the grid to its open card (see mealVisuals.tsx).
+   ============================================================================ */
+:root {
+  --tone-peach-bg: #fce8d6;
+  --tone-peach-ink: #9a5b16;
+  --tone-berry-bg: #f9e1eb;
+  --tone-berry-ink: #ae3e6e;
+  --tone-lavender-bg: #ede6f8;
+  --tone-lavender-ink: #6c4fa8;
+  --tone-periwinkle-bg: #e4eafb;
+  --tone-periwinkle-ink: #4a5cb0;
+  --tone-mint-bg: #def2e6;
+  --tone-mint-ink: #1e7d58;
+  --tone-coral-bg: #fbe4e1;
+  --tone-coral-ink: #c14840;
+  --tone-teal-bg: #d9f4ee;
+  --tone-teal-ink: #128a76;
+  --tone-honey-bg: #fdecc9;
+  --tone-honey-ink: #97651a;
 }
 
 /* ============================================================================
