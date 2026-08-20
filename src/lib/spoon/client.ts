@@ -124,6 +124,32 @@ export async function getMealPlan(): Promise<PlannedMeal[]> {
 }
 
 /**
+ * POST /meals/complete → mark one plan entry cooked (its `is_completed`), so the
+ * wall drops it. 2xx on success; the body carries the entry id.
+ *
+ * TARGET CONTRACT, NOT YET LIVE. Enchanted Spoon's `/api/hearth` router is
+ * read-only today and its integration token is scoped to the two reads only
+ * (docs/enchanted-spoon-integration.md). This is the single write it must add,
+ * and that token must be permitted to make it. Until it ships, a tap on the live
+ * wall degrades to a quiet inline "couldn't save" and the meal stays put (spec
+ * §6.2); mock mode (HEARTH_MEALS_MOCK=1) exercises the whole flow offline.
+ */
+export async function completeMeal(entryId: string): Promise<void> {
+  const res = await fetch(`${baseUrl()}/meals/complete`, {
+    method: "POST",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+    body: JSON.stringify({ entry_id: entryId }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `Enchanted Spoon POST /meals/complete failed (${res.status}): ${detail}`,
+    );
+  }
+}
+
+/**
  * GET /meals/<id> → one meal's card (main + sides, each with ingredients and
  * steps). Returns null on 404 — a meal removed from the plan since the last poll
  * is a normal race, not an error.

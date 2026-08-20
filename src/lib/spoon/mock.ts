@@ -6,9 +6,12 @@ import type { CardRecipe, MealCard, PlannedMeal } from "./types";
 // wanted. This serves a deterministic week of meals and their cards so the whole
 // read flow — plan → card, ingredients, steps — can be driven offline.
 //
-// Read-only, so unlike the Tada! mock this holds no mutable state: there is
-// nothing to complete or undo (spec D6). It resets nothing because it changes
-// nothing.
+// Meals is read-only but for one write — marking a meal cooked (its
+// `is_completed`), so the wall can drop it. Like the Tada! mock, this therefore
+// holds a little MUTABLE in-process state: the set of plan entries cooked from
+// the wall, so the complete → vanish flow can be exercised offline. That is not
+// a database and does not violate D1 — it lives only in the dev server's memory,
+// resets on restart, and can never run in production.
 //
 // SAFETY: enabled only when HEARTH_MEALS_MOCK=1 AND NODE_ENV !== production, so
 // synthetic meals can never reach the real wall.
@@ -324,23 +327,34 @@ const MEALS: MockMeal[] = [
   },
 ];
 
+// Plan entries cooked from the wall this session (dev only). `mockMealPlan`
+// reflects it as `is_completed` so the view filters them out, exactly as the
+// real plan would once Enchanted Spoon records the completion.
+const completedEntryIds = new Set<string>();
+
 export function mockMealPlan(): PlannedMeal[] {
   return MEALS.map((meal, i) => {
     const main = meal.recipes.find((r) => r.role === "main") ?? null;
+    const entryId = `e-${i + 1}`;
     return {
-      entryId: `e-${i + 1}`,
+      entryId,
       mealId: meal.mealId,
       name: meal.name,
       position: i,
       scheduledDate:
         meal.scheduledOffset === null ? null : isoDate(meal.scheduledOffset),
-      isCompleted: false,
+      isCompleted: completedEntryIds.has(entryId),
       mainRecipeName: main?.name ?? null,
       sideDishCount: meal.recipes.filter((r) => r.role === "side").length,
       totalTime: main?.totalTime ?? null,
       imageUrl: null,
     };
   });
+}
+
+/** Mark a plan entry cooked (dev only). Idempotent — completing twice is fine. */
+export function mockCompleteMeal(entryId: string): void {
+  completedEntryIds.add(entryId);
 }
 
 export function mockMealCard(mealId: string): MealCard | null {

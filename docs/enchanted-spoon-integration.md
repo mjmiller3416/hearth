@@ -2,9 +2,22 @@
 
 Hearth's **Meals** view reads the household's current meal plan and, on tap, a
 meal's card (ingredients + recipe) from **Enchanted Spoon** — the same data its
-Meal Planner renders. It is **read-only** (spec D6, §5.4): the wall reads the
-plan and the card, but never assigns, swaps, or edits meals; planning stays on
+Meal Planner renders. It is **read-only but for one gesture** (spec D6, §5.4):
+the wall reads the plan and the card, and can **mark a meal cooked** so it drops
+off the wall — but never assigns, swaps, or edits meals, and never *un*-completes
+one (restoring a mistaken completion stays in Enchanted Spoon). Planning stays on
 the phone.
+
+> **Status — the "mark cooked" write is a target contract, not yet live.** The
+> two reads below are built and live on both sides. The `POST /meals/complete`
+> write below is implemented on the **Hearth** side (route, client, mock, view)
+> and works end-to-end in mock mode, but Enchanted Spoon's `/api/hearth` router
+> does not expose it yet and its integration token is scoped to the two reads
+> only. Until Enchanted Spoon adds the endpoint and widens that token's scope,
+> tapping "Mark cooked" on the live wall optimistically drops the meal, then —
+> when the write 502s — lets it reappear with a quiet inline note (spec §6.2).
+> Mirrors how the Tada! integration was staged
+> ([`tada-integration-requirements.md`](./tada-integration-requirements.md)).
 
 Unlike the Tada! integration (still awaiting upstream endpoints — see
 [`tada-integration-requirements.md`](./tada-integration-requirements.md)), this
@@ -63,6 +76,28 @@ that as "left the plan since the last poll," not an error.
 ] }
 ```
 
+### `POST /meals/complete` — _the one write (target contract, not yet live)_
+Mark one **plan entry** cooked (set its `is_completed`), so the wall drops it.
+The id is the `entry_id` from `GET /meals`, **not** the `meal_id` — the same dish
+can sit in the queue more than once, and completion is a property of the entry.
+Idempotent: completing an already-cooked entry is a no-op success. No un-complete
+here — restoring a mistaken completion stays in the Enchanted Spoon app.
+
+```jsonc
+// request
+{ "entry_id": 1 }
+
+// 204  (no body)
+```
+
+Enchanted Spoon must: register this route on the `/api/hearth` router behind the
+same `get_integration_user` (X-API-Key) dependency, scoped to `INTEGRATION_USER_ID`;
+set the planner entry's completion flag through the existing service; and **widen
+the integration token's scope** to permit this one write (it is read-only today).
+Return `204` on success (and on a re-complete), `404` if the entry isn't on the
+account. Hearth normalizes any non-2xx to a quiet retry — see
+[`completeMeal`](../src/lib/spoon/client.ts).
+
 ---
 
 ## What was added on the Enchanted Spoon side
@@ -80,7 +115,10 @@ meal, and recipe services already return.
 - Tests: **`tests/test_hearth_meals.py`** (mappers + the read pipeline).
 
 The token is scoped to these two reads only — no meal-plan write, no settings, no
-Clerk-user data. Read-only matches spec D6.
+Clerk-user data. **The `POST /meals/complete` write above is the one addition
+still pending on this side**: a completion route on the same router plus a narrow
+scope widening to permit exactly that write. Everything else stays read-only per
+spec D6.
 
 ---
 
