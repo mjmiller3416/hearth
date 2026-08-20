@@ -125,14 +125,14 @@ export async function getMealPlan(): Promise<PlannedMeal[]> {
 
 /**
  * POST /meals/complete → mark one plan entry cooked (its `is_completed`), so the
- * wall drops it. 2xx on success; the body carries the entry id.
+ * wall drops it. 204 on success; the body carries the entry id.
  *
- * TARGET CONTRACT, NOT YET LIVE. Enchanted Spoon's `/api/hearth` router is
- * read-only today and its integration token is scoped to the two reads only
- * (docs/enchanted-spoon-integration.md). This is the single write it must add,
- * and that token must be permitted to make it. Until it ships, a tap on the live
- * wall degrades to a quiet inline "couldn't save" and the meal stays put (spec
- * §6.2); mock mode (HEARTH_MEALS_MOCK=1) exercises the whole flow offline.
+ * Implemented on both sides. The Enchanted Spoon endpoint ships on branch
+ * `feat/hearth-meals-complete` (drives the same `PlannerService.mark_completed`
+ * the Meal Planner uses) — see docs/enchanted-spoon-integration.md. Until that
+ * branch is deployed, a tap on the live wall degrades to a quiet inline
+ * "couldn't save" and the meal stays put (spec §6.2); mock mode
+ * (HEARTH_MEALS_MOCK=1) exercises the whole flow offline.
  */
 export async function completeMeal(entryId: string): Promise<void> {
   const res = await fetch(`${baseUrl()}/meals/complete`, {

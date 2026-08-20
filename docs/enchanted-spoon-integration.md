@@ -8,16 +8,17 @@ off the wall — but never assigns, swaps, or edits meals, and never *un*-comple
 one (restoring a mistaken completion stays in Enchanted Spoon). Planning stays on
 the phone.
 
-> **Status — the "mark cooked" write is a target contract, not yet live.** The
-> two reads below are built and live on both sides. The `POST /meals/complete`
-> write below is implemented on the **Hearth** side (route, client, mock, view)
-> and works end-to-end in mock mode, but Enchanted Spoon's `/api/hearth` router
-> does not expose it yet and its integration token is scoped to the two reads
-> only. Until Enchanted Spoon adds the endpoint and widens that token's scope,
-> tapping "Mark cooked" on the live wall optimistically drops the meal, then —
-> when the write 502s — lets it reappear with a quiet inline note (spec §6.2).
-> Mirrors how the Tada! integration was staged
-> ([`tada-integration-requirements.md`](./tada-integration-requirements.md)).
+> **Status — `POST /meals/complete` is implemented on both sides; pending an
+> Enchanted Spoon deploy to go live.** The Hearth side (route, client, mock,
+> view) is deployed and verified against the mock. The Enchanted Spoon side is
+> implemented on branch `feat/hearth-meals-complete` in the recipe-app repo
+> (`app/api/hearth.py`, `HearthCompleteMealDTO`, tests) but **not yet deployed**.
+> No auth change was needed: the integration user already writes (the Tada
+> shopping ingest uses the same `get_integration_user` path), so it was just the
+> one endpoint. Until that branch ships, tapping "Mark cooked" on the live wall
+> optimistically drops the meal, then — when the write 404/502s — lets it
+> reappear with a quiet inline note (spec §6.2). Once Enchanted Spoon deploys,
+> the gesture persists with no Hearth change.
 
 Unlike the Tada! integration (still awaiting upstream endpoints — see
 [`tada-integration-requirements.md`](./tada-integration-requirements.md)), this
@@ -76,49 +77,57 @@ that as "left the plan since the last poll," not an error.
 ] }
 ```
 
-### `POST /meals/complete` — _the one write (target contract, not yet live)_
+### `POST /meals/complete` — _the one write_
 Mark one **plan entry** cooked (set its `is_completed`), so the wall drops it.
 The id is the `entry_id` from `GET /meals`, **not** the `meal_id` — the same dish
 can sit in the queue more than once, and completion is a property of the entry.
-Idempotent: completing an already-cooked entry is a no-op success. No un-complete
-here — restoring a mistaken completion stays in the Enchanted Spoon app.
+No un-complete here — restoring a mistaken completion stays in the Enchanted
+Spoon app.
 
 ```jsonc
-// request
+// request  (Hearth sends the id as a string; Enchanted Spoon coerces to int)
 { "entry_id": 1 }
 
 // 204  (no body)
 ```
 
-Enchanted Spoon must: register this route on the `/api/hearth` router behind the
-same `get_integration_user` (X-API-Key) dependency, scoped to `INTEGRATION_USER_ID`;
-set the planner entry's completion flag through the existing service; and **widen
-the integration token's scope** to permit this one write (it is read-only today).
-Return `204` on success (and on a re-complete), `404` if the entry isn't on the
-account. Hearth normalizes any non-2xx to a quiet retry — see
+On the Enchanted Spoon side this drives the same `PlannerService.mark_completed`
+the Meal Planner's own complete action uses (so it records cooking history and
+re-syncs the shopping list), behind the existing `get_integration_user`
+(X-API-Key) dependency, scoped to `INTEGRATION_USER_ID`. Returns `204` on
+success, `404` if the entry isn't on the account (a meal gone since the last
+poll). Hearth normalizes any non-2xx to a quiet retry — see
 [`completeMeal`](../src/lib/spoon/client.ts).
 
 ---
 
 ## What was added on the Enchanted Spoon side
 
-A read-only router registered under `/api/hearth`, authenticated by the existing
-shared-secret dependency. No new data access — it projects what the planner,
-meal, and recipe services already return.
+A router registered under `/api/hearth`, authenticated by the existing
+shared-secret dependency. No new data access — it projects (and, for the one
+write, drives) what the planner, meal, and recipe services already do.
 
-- **`app/api/hearth.py`** — `GET /meals` and `GET /meals/{meal_id}`, both behind
-  `get_integration_user` (X-API-Key), scoped to `INTEGRATION_USER_ID`, rate-limited.
-- **`app/dtos/hearth_dtos.py`** — the stable contract DTOs above, plus pure
-  mappers from the internal planner/meal/recipe DTOs. Decoupled from internal
-  shapes on purpose, so refactors there don't silently break the wall.
+- **`app/api/hearth.py`** — `GET /meals`, `GET /meals/{meal_id}`, and
+  `POST /meals/complete`, all behind `get_integration_user` (X-API-Key), scoped
+  to `INTEGRATION_USER_ID`, rate-limited. The complete route calls
+  `PlannerService.mark_completed` — the same path the Meal Planner uses.
+- **`app/dtos/hearth_dtos.py`** — the stable contract DTOs above (including
+  `HearthCompleteMealDTO`), plus pure mappers from the internal planner/meal/
+  recipe DTOs. Decoupled from internal shapes on purpose, so refactors there
+  don't silently break the wall.
 - Registered in **`app/router.py`** under the `hearth`/`integration` tags.
-- Tests: **`tests/test_hearth_meals.py`** (mappers + the read pipeline).
+- Tests: **`tests/test_hearth_meals.py`** (mappers, the read pipeline, and the
+  mark-cooked write pipeline).
 
-The token is scoped to these two reads only — no meal-plan write, no settings, no
-Clerk-user data. **The `POST /meals/complete` write above is the one addition
-still pending on this side**: a completion route on the same router plus a narrow
-scope widening to permit exactly that write. Everything else stays read-only per
-spec D6.
+The token now permits exactly these three calls — the two reads plus the single
+mark-cooked write — and nothing else: no un-complete, no settings, no Clerk-user
+data. No auth change was needed for the write; the integration user already
+writes (the Tada shopping ingest uses the same dependency). Everything beyond
+this one gesture stays read-only per spec D6.
+
+The reads (`GET /meals`, `GET /meals/{meal_id}`) are deployed and live. The
+write (`POST /meals/complete`) is implemented on branch
+`feat/hearth-meals-complete` and goes live on the wall once that branch ships.
 
 ---
 
