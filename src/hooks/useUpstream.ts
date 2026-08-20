@@ -25,7 +25,8 @@ export interface UpstreamState<T> {
   /** True only before the first successful load. */
   isLoading: boolean;
   error: unknown;
-  refetch: () => void;
+  /** Force a fetch now; resolves once that run settles (or is superseded). */
+  refetch: () => Promise<void>;
 }
 
 export interface UpstreamOptions {

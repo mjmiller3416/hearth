@@ -81,3 +81,20 @@ export interface MealPlanPayload {
 export interface MealCardPayload {
   card: MealCard | null;
 }
+
+// ── Write contract (client → server) ────────────────────────────────────────
+
+/**
+ * POST /api/meals/complete. Marks one plan entry cooked in Enchanted Spoon (its
+ * `is_completed`), so the wall can drop it — the "quick access" gesture the
+ * kitchen wants. This is the ONE write Meals gains over its otherwise read-only
+ * contract (spec D6): no assign, swap, or edit still holds; restoring an
+ * accidental completion stays in Enchanted Spoon, so there is deliberately no
+ * undo here.
+ *
+ * `entryId` is the plan ENTRY, not the meal — the same dish can sit in the queue
+ * more than once, and completion is a property of the entry (`RawPlannedMeal`).
+ */
+export interface CompleteMealBody {
+  entryId: string;
+}

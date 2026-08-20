@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen,
+  Check,
   Clock,
   Flame,
   Gauge,
@@ -212,11 +213,15 @@ export function MealCardPanel({
   mealId,
   mealName,
   onClose,
+  onCooked,
 }: {
   mealId: string;
   /** The name from the plan row, shown as the header until the card loads. */
   mealName: string;
   onClose: () => void;
+  /** Mark this meal cooked and dismiss — the same write the tile offers, for
+   *  when you finish cooking with the recipe open. Omit to hide the action. */
+  onCooked?: () => void;
 }) {
   const [card, setCard] = useState<MealCard | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error" | "gone">("loading");
@@ -334,6 +339,21 @@ export function MealCardPanel({
             </div>
           ) : null}
         </div>
+
+        {/* Footer: mark cooked from the card too — the natural moment is right
+            after cooking, recipe still open. Read-only otherwise (spec D6). */}
+        {onCooked && (
+          <div className="flex shrink-0 items-center justify-end border-t border-hairline px-8 py-5">
+            <button
+              type="button"
+              onClick={onCooked}
+              className="flex items-center gap-3 rounded-full bg-teal-strong px-7 py-3.5 text-label font-medium leading-none text-white shadow-sm transition-transform active:scale-95"
+            >
+              <Check className="size-6" strokeWidth={2.5} aria-hidden />
+              Mark as cooked
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
