@@ -1,5 +1,5 @@
 # Hearth frontend Dockerfile for Railway deployment.
-# Mirrors the recipe-app frontend build: multi-stage, Next.js standalone output.
+# Mirrors the enchanted-spoon frontend build: multi-stage, Next.js standalone output.
 #
 # Note: Hearth has NO NEXT_PUBLIC_* build args. Every secret (HEARTH_DEVICE_TOKEN
 # and, in later phases, the upstream API tokens) is a RUNTIME env var consumed

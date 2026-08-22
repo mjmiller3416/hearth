@@ -126,7 +126,7 @@ Run 1 through 4 against the deployed Railway URL from a machine with no auth coo
 
 ## Follow-up, tracked separately
 
-`recipe-app` is pinned to the same Next version and carries the same advisories. Bump it on its own branch with its own testing pass — do not couple the two upgrades just because the versions currently match. It has real user data behind its auth, so it warrants the same review of where authorization actually executes, not only a version bump.
+`enchanted-spoon` is pinned to the same Next version and carries the same advisories. Bump it on its own branch with its own testing pass — do not couple the two upgrades just because the versions currently match. It has real user data behind its auth, so it warrants the same review of where authorization actually executes, not only a version bump.
 
 ---
 
