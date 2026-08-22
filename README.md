@@ -34,7 +34,7 @@ by **Shopping** — see the spec.)
 
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · deployed on
 Railway from a Dockerfile (`standalone` output). Matches the existing
-recipe-app frontend conventions.
+enchanted-spoon frontend conventions.
 
 ## Local development
 

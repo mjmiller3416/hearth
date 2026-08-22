@@ -11,7 +11,7 @@ the phone.
 > **Status — `POST /meals/complete` is implemented on both sides; pending an
 > Enchanted Spoon deploy to go live.** The Hearth side (route, client, mock,
 > view) is deployed and verified against the mock. The Enchanted Spoon side is
-> implemented on branch `feat/hearth-meals-complete` in the recipe-app repo
+> implemented on branch `feat/hearth-meals-complete` in the enchanted-spoon repo
 > (`app/api/hearth.py`, `HearthCompleteMealDTO`, tests) but **not yet deployed**.
 > No auth change was needed: the integration user already writes (the Tada
 > shopping ingest uses the same `get_integration_user` path), so it was just the
