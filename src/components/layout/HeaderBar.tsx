@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTimeZone } from "@/components/common/TimeZone";
+import { HeaderCountdown } from "./HeaderCountdown";
 
 // Day · date · time. The time updates every minute, not every second (Phase 0
 // #6) — a second hand ticking in peripheral vision all day is an irritant, and
@@ -10,6 +11,10 @@ import { useTimeZone } from "@/components/common/TimeZone";
 //
 // Rendered in the HOUSEHOLD timezone, not the device's (Phase 2 #4): the wall
 // shows the right local time even if the Skylight's own timezone is set wrong.
+//
+// Between the date and the clock sits the live countdown (HeaderCountdown) —
+// present only while the calendar has a countdown event to show. It is the one
+// place on the wall that ticks by the second, at the household's request.
 export function HeaderBar() {
   const timeZone = useTimeZone();
   // Null until mounted so server and first client render match (no hydration
@@ -43,15 +48,16 @@ export function HeaderBar() {
     : "";
 
   return (
-    <header className="flex items-end justify-between border-b border-hairline px-10 pb-5 pt-7">
-      <div className="flex items-baseline gap-5">
+    <header className="flex items-end justify-between gap-8 border-b border-hairline px-10 pb-5 pt-7">
+      <div className="flex shrink-0 items-baseline gap-5">
         <span className="font-display text-display leading-none text-ink">
           {dayName}
         </span>
         <span className="text-title text-ink-soft">{dateStr}</span>
       </div>
+      <HeaderCountdown />
       <span
-        className="font-display text-display leading-none tabular-nums text-ink"
+        className="shrink-0 font-display text-display leading-none tabular-nums text-ink"
         suppressHydrationWarning
       >
         {timeStr}
