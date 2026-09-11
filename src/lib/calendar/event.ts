@@ -4,7 +4,7 @@
 // is baked onto event.colors; these are the questions the client still asks.)
 
 import type { CalendarEvent } from "./types";
-import { parseBoundary, startOfDay } from "./dates";
+import { parseBoundary, startOfDay, zonedFields } from "./dates";
 import { EVERYONE_COLOR } from "./palette";
 
 // The sentinel filter key for the "Family" chip (Phase 2 #2). Distinct from any
@@ -80,9 +80,56 @@ export function soonestCountdown(
   return best;
 }
 
-/** "Today", "Tomorrow", "in 12 days" — the countdown label for a badge/strip. */
+/** "Today", "Tomorrow", "in 12 days" — the day-granular countdown label. */
 export function countdownLabel(days: number): string {
   if (days <= 0) return "Today";
   if (days === 1) return "Tomorrow";
   return `in ${days} days`;
+}
+
+/**
+ * Milliseconds from `nowMs` until the countdown moment — a timed event's start
+ * instant, or midnight (household wall clock) at the start of an all-day
+ * event's day. Negative once it has arrived. Drives the live header countdown.
+ *
+ * A timed start is an absolute instant, so it compares straight against the
+ * real clock. An all-day start is a floating date that `parseBoundary` places
+ * at LOCAL midnight, so it is compared against "now" read in that same frame —
+ * the household zone's wall-clock fields as a local Date, exactly what
+ * `zonedNow` does for the rest of the calendar.
+ */
+export function countdownRemainingMs(
+  event: CalendarEvent,
+  nowMs: number,
+  tz?: string,
+): number {
+  const start = parseBoundary(event.start).getTime();
+  if (!event.allDay) return start - nowMs;
+  const f = zonedFields(new Date(nowMs), tz);
+  const wall = new Date(f.y, f.m - 1, f.d, f.h, f.mi, f.s).getTime();
+  return start - wall;
+}
+
+export interface CountdownParts {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
+/**
+ * Split a remaining span into whole days / hours / minutes / seconds. Seconds
+ * round UP so a tick that lands a few ms after the second boundary still reads
+ * the second genuinely left (a floor would show one less for most of every
+ * second and hit zero a second early). Never negative: an arrived countdown is
+ * all zeros.
+ */
+export function countdownParts(remainingMs: number): CountdownParts {
+  const total = Math.max(0, Math.ceil(remainingMs / 1000));
+  return {
+    days: Math.floor(total / 86_400),
+    hours: Math.floor((total % 86_400) / 3_600),
+    minutes: Math.floor((total % 3_600) / 60),
+    seconds: total % 60,
+  };
 }

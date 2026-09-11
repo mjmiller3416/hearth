@@ -8,7 +8,7 @@ import {
 } from "@/lib/calendar/config";
 
 // Synthetic events for LOCAL development only. Building the full month grid,
-// overflow panel, filters, week view, color bands, and the countdown strip is
+// overflow panel, filters, week view, color bands, and the header countdown is
 // impossible to verify without event data, and the real Google setup (dedicated
 // account, OAuth consent, refresh token) is manual operator work that can't run
 // in a build sandbox. This lets the rendering be exercised end-to-end against
@@ -58,7 +58,7 @@ const SAMPLE_TITLES = [
  *     1–4 members exercise solid / band / everyone rendering.
  *   - Family-calendar events (no group) — shown neutral.
  *   - Private personal events on member calendars (no group) — FILTERED OUT.
- *   - A couple of countdown events (Hearth) for the badge and strip.
+ *   - A couple of countdown events (Hearth) for the badge and header countdown.
  */
 export function getMockEvents(start: Date, end: Date): CalendarEvent[] {
   const members = getMembers();
@@ -154,7 +154,7 @@ export function getMockEvents(start: Date, end: Date): CalendarEvent[] {
     }
   }
 
-  // A couple of countdown events (Hearth) so the badge and the strip have data.
+  // A couple of countdown events (Hearth) so the badge and header countdown have data.
   const firstKey = members[0]?.key;
   if (firstKey) {
     pushHearth("cd1", "Disney trip", dateOnly(now, 12), dateOnly(now, 13), true, [firstKey], true);

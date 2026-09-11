@@ -23,9 +23,9 @@ import {
   zonedNow,
 } from "@/lib/calendar/dates";
 import { useTimeZone } from "@/components/common/TimeZone";
+import { useSetCountdownEvent } from "@/components/common/Countdown";
 import { MemberChips } from "./MemberChips";
 import { CalendarControls } from "./CalendarControls";
-import { CountdownStrip } from "./CountdownStrip";
 import { MonthGrid } from "./MonthGrid";
 import { WeekView } from "./WeekView";
 import { DayPanel } from "./DayPanel";
@@ -38,7 +38,8 @@ import { AddEventPanel } from "./AddEventPanel";
 // the default (spec §4.1).
 //
 // Phase 1.5 adds event creation: an Add panel reachable from a floating button
-// or by tapping an empty day, colored member bands, and a countdown strip. A
+// or by tapping an empty day, colored member bands, and a countdown — shown
+// live in the main header (HeaderCountdown via CountdownProvider). A
 // just-created event is merged into local state immediately, keyed by id, so the
 // next poll dedupes rather than duplicating (Phase 1.5 #19).
 //
@@ -220,10 +221,16 @@ export function CalendarView() {
       ? events.filter((e) => concernsFamily(e))
       : events.filter((e) => memberConcerns(e, filter));
 
-  const nextCountdown = useMemo(
-    () => soonestCountdown(filtered, now),
-    [filtered, now],
-  );
+  // The soonest countdown event is shown live in the main header, not in the
+  // grid. It reads the UNFILTERED events: the header is app chrome, and the
+  // household's next big thing should not vanish because someone tapped a
+  // member chip. Cleared on unmount so other views never carry a stale pick.
+  const setCountdownEvent = useSetCountdownEvent();
+  const nextCountdown = useMemo(() => soonestCountdown(events, now), [events, now]);
+  useEffect(() => {
+    setCountdownEvent(nextCountdown);
+    return () => setCountdownEvent(null);
+  }, [nextCountdown, setCountdownEvent]);
 
   const step = (dir: number) =>
     setAnchor((a) => (mode === "month" ? addMonths(a, dir) : addDays(a, dir * 7)));
@@ -350,25 +357,22 @@ export function CalendarView() {
         ) : undefined
       }
     >
-      <div className="flex h-full flex-col gap-4">
-        {nextCountdown && <CountdownStrip event={nextCountdown} now={now} />}
-        <div className="min-h-0 flex-1">
-          {mode === "month" ? (
-            <MonthGrid
-              anchor={anchor}
-              events={filtered}
-              now={now}
-              onOpenDay={setOpenDay}
-            />
-          ) : (
-            <WeekView
-              anchor={anchor}
-              events={filtered}
-              now={now}
-              onOpenDay={setOpenDay}
-            />
-          )}
-        </div>
+      <div className="h-full">
+        {mode === "month" ? (
+          <MonthGrid
+            anchor={anchor}
+            events={filtered}
+            now={now}
+            onOpenDay={setOpenDay}
+          />
+        ) : (
+          <WeekView
+            anchor={anchor}
+            events={filtered}
+            now={now}
+            onOpenDay={setOpenDay}
+          />
+        )}
       </div>
 
       {/* Floating add button — the secondary entry point (Phase 1.5 #10). */}

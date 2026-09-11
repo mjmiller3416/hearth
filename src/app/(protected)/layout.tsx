@@ -6,6 +6,7 @@ import { HeaderBar } from "@/components/layout/HeaderBar";
 import { Stage } from "@/components/layout/Stage";
 import { TimeZoneProvider } from "@/components/common/TimeZone";
 import { ColorProvider } from "@/components/common/ColorProvider";
+import { CountdownProvider } from "@/components/common/Countdown";
 import { resolveTimeZone } from "@/lib/calendar/recurrence";
 import { getColorConfig } from "@/lib/settings/store";
 
@@ -45,13 +46,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       {overrideCss && <style>{`:root{${overrideCss}}`}</style>}
       <TimeZoneProvider tz={timeZone}>
         <ColorProvider textBySlug={textBySlug}>
-          <div className="flex h-full w-full overflow-hidden bg-ground text-ink">
-            <Sidebar />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <HeaderBar />
-              <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+          <CountdownProvider>
+            <div className="flex h-full w-full overflow-hidden bg-ground text-ink">
+              <Sidebar />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <HeaderBar />
+                <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+              </div>
             </div>
-          </div>
+          </CountdownProvider>
         </ColorProvider>
       </TimeZoneProvider>
     </Stage>
