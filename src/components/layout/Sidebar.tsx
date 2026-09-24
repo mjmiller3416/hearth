@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   Calendar,
+  CalendarClock,
   ListTodo,
   Settings,
   SprayCan,
@@ -21,6 +22,7 @@ const ICONS: Record<NavId, LucideIcon> = {
   calendar: Calendar,
   clean: SprayCan,
   chores: SquareCheckBig,
+  schedule: CalendarClock,
   lists: ListTodo,
   meals: UtensilsCrossed,
   recipes: BookOpen,
