@@ -23,8 +23,16 @@ export const appConfig = {
 // **Chores** checklist (spec §4.2–4.3, D4/D5) — bringing the sidebar to six.
 // "Recipes" stays a placeholder until Phase 4 renames it to Shopping. Icons are
 // mapped in the Sidebar component so this stays pure data, importable from server
-// code.
-export type NavId = "calendar" | "clean" | "chores" | "lists" | "meals" | "recipes";
+// code. "Schedule" (the kids' school week, from Tandem) sits beside Chores, the
+// other kids' surface.
+export type NavId =
+  | "calendar"
+  | "clean"
+  | "chores"
+  | "schedule"
+  | "lists"
+  | "meals"
+  | "recipes";
 
 export interface NavItem {
   id: NavId;
@@ -38,6 +46,7 @@ export const NAV: NavItem[] = [
   { id: "calendar", label: "Calendar", href: "/calendar", phase: 1 },
   { id: "clean", label: "Clean", href: "/clean", phase: 2 },
   { id: "chores", label: "Chores", href: "/chores", phase: 2 },
+  { id: "schedule", label: "Schedule", href: "/schedule", phase: 4 },
   { id: "lists", label: "Lists", href: "/lists", phase: 3 },
   { id: "meals", label: "Meals", href: "/meals", phase: 4 },
   { id: "recipes", label: "Recipes", href: "/recipes", phase: 4 },
