@@ -138,6 +138,26 @@ components, and never reaches the browser bundle.
 | `HEARTH_TASKS_MOCK` | 2 | Local dev only — serves deterministic synthetic Tada! data so Clean & Chores work without the real API. Ignored in production. |
 | `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon. Meals read-only (**live** — token sent as `X-API-Key`, must equal Enchanted Spoon's `INTEGRATION_API_KEY`); Shopping read-write (later). |
 
+### Timed view schedule
+
+The wall switches views by itself through the day, by the household clock
+(`HOUSEHOLD_TIMEZONE`, the time shown in the header). The times live in
+`VIEW_SCHEDULE` in [`src/lib/config.ts`](src/lib/config.ts). To change them, edit
+that list and deploy:
+
+| Time | View |
+|---|---|
+| 8:55 am | Schedule |
+| 4:45 pm | Chores |
+| 6:30 pm | Meals |
+| 10:00 pm | Calendar |
+
+The switch happens only when a boundary passes. If the wall was touched in the
+last minute, it waits until the wall has been left alone for a minute. Tapping
+to another view between boundaries sticks. `/` opens whichever view is due right
+now. The switching is done by `src/components/common/ViewScheduler.tsx`, with
+the slot math in `src/lib/viewSchedule.ts`.
+
 ## Calendar (Phase 1)
 
 The Calendar view reads the family Google calendars and renders a month grid
