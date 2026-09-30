@@ -8,6 +8,30 @@ export const appConfig = {
   defaultRoute: "/calendar",
 } as const;
 
+// ── Timed view schedule ─────────────────────────────────────────────────────
+// The wall changes views on its own through the day. At each time below (24h
+// "HH:MM", in the HOUSEHOLD timezone — the same clock the header shows) the wall
+// switches to that view. Each entry holds until the next one; the last entry
+// wraps past midnight to the first. Someone can still tap to another view in
+// between — the schedule only acts when a boundary passes, and waits until the
+// wall has been left alone for a minute so it never yanks a view mid-use.
+// Loading `/` lands on whichever view is due now.
+//
+// To change the times, edit this list; order doesn't matter. Hrefs must match
+// an entry in NAV below. Empty the list to turn the feature off.
+export interface ViewScheduleEntry {
+  /** 24-hour "HH:MM" in the household timezone. */
+  at: string;
+  href: string;
+}
+
+export const VIEW_SCHEDULE: ViewScheduleEntry[] = [
+  { at: "08:55", href: "/schedule" },
+  { at: "16:45", href: "/chores" },
+  { at: "18:30", href: "/meals" },
+  { at: "22:00", href: "/calendar" },
+];
+
 // ── Family members ─────────────────────────────────────────────────────────
 // The canonical list of taggable people is env-driven as of Phase 1.5 (the
 // `MEMBERS` variable), parsed in src/lib/calendar/config.ts — because members
