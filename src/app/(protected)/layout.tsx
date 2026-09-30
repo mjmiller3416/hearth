@@ -7,6 +7,7 @@ import { Stage } from "@/components/layout/Stage";
 import { TimeZoneProvider } from "@/components/common/TimeZone";
 import { ColorProvider } from "@/components/common/ColorProvider";
 import { CountdownProvider } from "@/components/common/Countdown";
+import { ViewScheduler } from "@/components/common/ViewScheduler";
 import { resolveTimeZone } from "@/lib/calendar/recurrence";
 import { getColorConfig } from "@/lib/settings/store";
 
@@ -45,6 +46,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     <Stage>
       {overrideCss && <style>{`:root{${overrideCss}}`}</style>}
       <TimeZoneProvider tz={timeZone}>
+        <ViewScheduler />
         <ColorProvider textBySlug={textBySlug}>
           <CountdownProvider>
             <div className="flex h-full w-full overflow-hidden bg-ground text-ink">
