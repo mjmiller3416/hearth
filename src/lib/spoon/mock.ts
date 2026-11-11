@@ -1,6 +1,13 @@
-import type { CardRecipe, MealCard, PlannedMeal } from "./types";
+import type {
+  AddShoppingItemResult,
+  CardRecipe,
+  MealCard,
+  PlannedMeal,
+  ShoppingItem,
+} from "./types";
 
-// Synthetic Enchanted Spoon data for LOCAL development only (Phase 4, Meals).
+// Synthetic Enchanted Spoon data for LOCAL development only (Phase 4, Meals and
+// Shopping — both behind the one HEARTH_MEALS_MOCK flag).
 // The plan grid and the tap-to-open card are impossible to exercise without meal
 // data, and pointing local dev at the real Enchanted Spoon account isn't always
 // wanted. This serves a deterministic week of meals and their cards so the whole
@@ -361,4 +368,50 @@ export function mockMealCard(mealId: string): MealCard | null {
   const meal = MEALS.find((m) => m.mealId === mealId);
   if (!meal) return null;
   return { mealId: meal.mealId, mealName: meal.name, recipes: meal.recipes };
+}
+
+// ── Shopping list (dev only) ────────────────────────────────────────────────
+// A small starting list across a few categories, plus whatever is added from
+// the wall this session. Adds mirror Enchanted Spoon's rules closely enough to
+// exercise all three outcomes: a needed match is "already_listed", a had match
+// is "reactivated", anything else is "added" under "other".
+
+const shoppingItems: ShoppingItem[] = [
+  { id: "s-1", name: "Bananas", quantity: 6, unit: null, category: "produce", have: false, source: "manual" },
+  { id: "s-2", name: "Ground beef", quantity: 1, unit: "lb", category: "meat", have: false, source: "recipe" },
+  { id: "s-3", name: "Milk", quantity: 1, unit: "gal", category: "dairy", have: false, source: "manual" },
+  { id: "s-4", name: "Cheddar cheese", quantity: 8, unit: "oz", category: "dairy", have: false, source: "recipe" },
+  { id: "s-5", name: "Taco shells", quantity: 1, unit: null, category: "pantry", have: false, source: "recipe" },
+  { id: "s-6", name: "Paper towels", quantity: 1, unit: null, category: "household", have: false, source: "tada" },
+  { id: "s-7", name: "Coffee", quantity: 1, unit: null, category: "beverages", have: true, source: "manual" },
+];
+let nextShoppingId = shoppingItems.length + 1;
+
+/** The dev shopping list, every row (needed and had). */
+export function mockShoppingList(): ShoppingItem[] {
+  return shoppingItems.map((item) => ({ ...item }));
+}
+
+/** Add an item by name (dev only), with Enchanted Spoon's three outcomes. */
+export function mockAddShoppingItem(name: string): AddShoppingItemResult {
+  const key = name.trim().toLowerCase();
+  const matches = shoppingItems.filter((i) => i.name.toLowerCase() === key);
+  const needed = matches.find((i) => !i.have);
+  if (needed) return { status: "already_listed", name: needed.name };
+  const had = matches[0];
+  if (had) {
+    had.have = false;
+    return { status: "reactivated", name: had.name };
+  }
+  const item: ShoppingItem = {
+    id: `s-${nextShoppingId++}`,
+    name: name.trim(),
+    quantity: 1,
+    unit: null,
+    category: "other",
+    have: false,
+    source: "manual",
+  };
+  shoppingItems.push(item);
+  return { status: "added", name: item.name };
 }

@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BookOpen,
   Calendar,
   CalendarClock,
   ListTodo,
   Settings,
+  ShoppingCart,
   SprayCan,
   SquareCheckBig,
   UtensilsCrossed,
@@ -25,7 +25,7 @@ const ICONS: Record<NavId, LucideIcon> = {
   schedule: CalendarClock,
   lists: ListTodo,
   meals: UtensilsCrossed,
-  recipes: BookOpen,
+  shopping: ShoppingCart,
 };
 
 function RailLink({

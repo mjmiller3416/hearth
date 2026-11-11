@@ -45,7 +45,7 @@ export const VIEW_SCHEDULE: ViewScheduleEntry[] = [
 // "Tasks" destination is split into two Tada! surfaces with deliberately
 // different philosophies — Maryann's guided **Clean** session and the kids'
 // **Chores** checklist (spec §4.2–4.3, D4/D5) — bringing the sidebar to six.
-// "Recipes" stays a placeholder until Phase 4 renames it to Shopping. Icons are
+// Phase 4 renamed the "Recipes" placeholder to **Shopping** (spec D6). Icons are
 // mapped in the Sidebar component so this stays pure data, importable from server
 // code. "Schedule" (the kids' school week, from Tandem) sits beside Chores, the
 // other kids' surface.
@@ -56,7 +56,7 @@ export type NavId =
   | "schedule"
   | "lists"
   | "meals"
-  | "recipes";
+  | "shopping";
 
 export interface NavItem {
   id: NavId;
@@ -73,5 +73,5 @@ export const NAV: NavItem[] = [
   { id: "schedule", label: "Schedule", href: "/schedule", phase: 4 },
   { id: "lists", label: "Lists", href: "/lists", phase: 3 },
   { id: "meals", label: "Meals", href: "/meals", phase: 4 },
-  { id: "recipes", label: "Recipes", href: "/recipes", phase: 4 },
+  { id: "shopping", label: "Shopping", href: "/shopping", phase: 4 },
 ];

@@ -5,7 +5,7 @@
 **Working name:** Hearth (placeholder — rename freely, it appears nowhere user-facing except the PWA manifest)
 **Names:** the meal planner is **Enchanted Spoon** (earlier drafts called it "MealGenie" — same app).
 
-**Build status at a glance.** Phase 0 (shell, device auth, deploy) and Phase 1 (Calendar) are built. Phase 1.5 grew the calendar into a full read-write client — **create, edit, and delete** — on a **per-member-calendar** model, and added the **Settings** surface with customizable member colors. Phase 2 (Clean & Chores) is built and verified **against a mock**; the live Tada! integration is blocked on device-scoped endpoints Tada! does not yet expose (§5.2–5.3, `docs/tada-integration-requirements.md`). Phases 3 (Lists) and 4 (Meals + Shopping) are unbuilt placeholders. Where this document once said "create only" and "no database," the sections below record what the code actually does and why the boundary still holds.
+**Build status at a glance.** Phase 0 (shell, device auth, deploy) and Phase 1 (Calendar) are built. Phase 1.5 grew the calendar into a full read-write client — **create, edit, and delete** — on a **per-member-calendar** model, and added the **Settings** surface with customizable member colors. Phase 2 (Clean & Chores) is built and verified **against a mock**; the live Tada! integration is blocked on device-scoped endpoints Tada! does not yet expose (§5.2–5.3, `docs/tada-integration-requirements.md`). Phase 3 (Lists) is an unbuilt placeholder. Phase 4's Meals is live, and Shopping is live for reading the list and adding items (check-off, edit, remove and the Tada! supplies shelf are not built yet). Where this document once said "create only" and "no database," the sections below record what the code actually does and why the boundary still holds.
 
 ---
 
@@ -90,7 +90,7 @@ The asymmetry with Maryann's surface is intentional and is not an inconsistency.
 Kid completion is one of Hearth's write paths, and the original one. It now shares its mechanism with Maryann's session completions (§5.3) rather than standing alone.
 
 **D6 — Enchanted Spoon: Meals is read-only; Shopping List is read-write.**
-*(Amended in the client rework — was "MealGenie integration is read-only"; the "Recipes" view is replaced by "Shopping List." Note: the running app still shows a placeholder labeled "Recipes" — the rename lands when Phase 4 builds the view; see §4.)*
+*(Amended in the client rework — was "MealGenie integration is read-only"; the "Recipes" view is replaced by "Shopping List." The rename landed with Phase 4's Shopping view; see §4.)*
 
 - **Meals** shows the current week's plan and lets you tap a meal to open its card — ingredients and recipe — the same Meal Planner view Enchanted Spoon already renders. Read-only. Editing the plan (assigning or swapping meals) stays on the phone; the wall reads the plan and reads recipe detail, nothing more.
 - **Shopping List** is a full read-write client of Enchanted Spoon's list: check items off, add, remove, edit — live-synced. Enchanted Spoon remains the single source of truth and holds all list logic; every change writes straight to its backend. This is a deliberate exception to the old read-only rule, and it is safe precisely because Enchanted Spoon was built to receive these writes — Hearth still stores and computes nothing.
@@ -171,11 +171,11 @@ One Railway service in the existing project. Environment variables carry all con
 
 ## 4. Views
 
-The sidebar is the whole navigation model. It carries **six content destinations** — the Skylight's familiar set, split so each person's surface stands on its own (Maryann's **Clean**, the kids' **Chores**) and with **Recipes** slated to become the **Shopping** list the household actually uses (D6) — plus a **Settings** affordance anchored at the bottom of the rail (§4.7).
+The sidebar is the whole navigation model. It carries **six content destinations** — the Skylight's familiar set, split so each person's surface stands on its own (Maryann's **Clean**, the kids' **Chores**) and with **Shopping** (formerly the "Recipes" placeholder) as the list the household actually uses (D6) — plus a **Settings** affordance anchored at the bottom of the rail (§4.7).
 
 Two notes on where the code sits today:
 
-- The sixth content view still renders a placeholder labeled **"Recipes."** It is renamed to **Shopping** when Phase 4 builds it; until then the sidebar shows "Recipes," and this table lists the destination by its Phase-4 name.
+- The sixth content view is **Shopping**, renamed from the "Recipes" placeholder in Phase 4. It reads the list and adds items; check-off, edit, remove and the Tada! supplies shelf are still to come.
 - **Clean** and **Chores** are built but run against a mock — see the status column and §5.2–5.3.
 
 | View | Source | Phase | Writes? | Built? |
@@ -185,7 +185,7 @@ Two notes on where the code sits today:
 | Chores | Tada! | 2 | Yes (task completion + undo) | ✅ mock-only |
 | Lists | Tada! | 3 | No | ⬜ placeholder |
 | Meals | Enchanted Spoon | 4 | No | ✅ live (real Enchanted Spoon) |
-| Shopping *(shown as "Recipes")* | Enchanted Spoon · Tada! | 4 | Yes (list items → Enchanted Spoon; supply flags → Tada!) | ⬜ placeholder |
+| Shopping | Enchanted Spoon · Tada! | 4 | Yes (list items → Enchanted Spoon; supply flags → Tada!) | 🟨 live: read + add items |
 | Settings | Hearth (colors file) | 2 | Yes (color preference, D12) | ✅ |
 
 The whole chrome and every view are authored on a fixed **1920×1080** canvas and scaled to fit the viewport by a `<Stage>` wrapper — one drawn resolution, fitted, never reflowed (§6.1).
@@ -362,7 +362,7 @@ Resolve these before or during the phase noted.
 | Q4 | Does Enchanted Spoon expose, at a device-callable seam, the current-week meal plan **and** each meal's card (ingredients, recipe)? | 4 | Open. |
 | Q5 | Do the Clean and Chores views surface undo on a just-completed row, or are wall mistakes corrected on a phone? | 2 | **Resolved: undo on the just-completed row in both views** (§5.3). |
 | Q6 | Does the Skylight unit reach Android developer options at all? (Ten minutes with a USB cable answers this.) | 5 | Open. |
-| Q7 | Does Enchanted Spoon expose shopping-list read + item mutation to a scoped device token, and is its shopping-list sync refactor settled enough to build against (§5.5, D6)? | 4 | Open. |
+| Q7 | Does Enchanted Spoon expose shopping-list read + item mutation to a scoped device token, and is its shopping-list sync refactor settled enough to build against (§5.5, D6)? | 4 | **Partly resolved:** read and add are live on `/api/hearth/shopping` (X-API-Key, the same integration account as Meals). Check/edit/remove are not exposed yet. |
 | Q8 | Does Tada! expose the supplies roster (read) and flag-low (write) to the device token, and does flagging low already add to the Enchanted Spoon list in Tada!'s backend? | 4 | Open. |
 
 ---
@@ -376,7 +376,7 @@ Resolve these before or during the phase noted.
 | 1.5 | Calendar write: **create, edit, delete** (non-recurring) on the **per-member-calendar** fan-out model; member tags, countdown; **Settings** + customizable colors | (Settings) | ✅ Done |
 | 2 | Clean (session + room picker + done-today) and Chores (kids) — Tada! reads + completion/undo writes | Clean, Chores | ✅ Built, **mock-only** (live blocked on Tada! endpoints — §5.2, `docs/tada-integration-requirements.md`) |
 | 3 | Lists view | Lists | ⬜ Placeholder |
-| 4 | Meals (plan + cards) and Shopping (read-write list + Tada! supplies shelf); rename "Recipes" → "Shopping" | Meals, Shopping | 🟨 **Meals ✅ live** (real Enchanted Spoon, `docs/enchanted-spoon-integration.md`); Shopping ⬜ placeholder |
+| 4 | Meals (plan + cards) and Shopping (read-write list + Tada! supplies shelf); rename "Recipes" → "Shopping" | Meals, Shopping | 🟨 **Meals ✅ live** (real Enchanted Spoon, `docs/enchanted-spoon-integration.md`); **Shopping 🟨 live for read + add** (check/edit/remove and the supplies shelf to come) |
 | 5 | Hardware deployment and kiosk configuration | — | ⬜ Not started |
 
 Phase 1.5 grew beyond the original "create only": it reworked the calendar onto per-member calendars (assignment decides where an event lives and its color, D3), added **edit and delete** for non-recurring events including phone-made ones (D2), and introduced the **Settings** surface with customizable, persisted family colors (D12) — Hearth's one piece of at-rest state.

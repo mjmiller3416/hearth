@@ -1,11 +1,12 @@
-// Shared Enchanted Spoon types for Phase 4 (Meals, read-only). Free of any
-// server-only import so both the route handlers and the client view can import
+// Shared Enchanted Spoon types for Phase 4 (Meals and Shopping). Free of any
+// server-only import so both the route handlers and the client views can import
 // them.
 //
-// Meals is read-only (spec D6, §4.5, §5.4): the wall reads the current plan and,
-// on tap, a meal's card — ingredients and recipe. It never assigns, swaps, or
-// edits meals; that stays on the phone. These shapes therefore carry no write
-// affordance, no planner position mutation, nothing but what the card renders.
+// Meals is read-only but for "mark cooked" (spec D6, §4.5, §5.4): the wall reads
+// the current plan and, on tap, a meal's card — ingredients and recipe. It never
+// assigns, swaps, or edits meals; that stays on the phone. The meal shapes
+// therefore carry no planner mutation, nothing but what the card renders.
+// Shopping shapes are at the bottom of this file.
 
 /**
  * One meal in the plan, as a glanceable row (spec §4.5). Enchanted Spoon's
@@ -98,3 +99,55 @@ export interface MealCardPayload {
 export interface CompleteMealBody {
   entryId: string;
 }
+
+// ── Shopping list ───────────────────────────────────────────────────────────
+//
+// Enchanted Spoon's shopping list on the wall (spec §4.6, D6). Enchanted Spoon
+// owns the list and all its logic (dedupe, categories, recipe aggregation);
+// Hearth reads it and, for now, makes ONE write: add an item by name. Checking
+// off, editing, and removing stay on the phone until a later pass.
+
+/**
+ * One shopping-list row. `category` is Enchanted Spoon's lowercase slug
+ * ("produce", "dairy", "oils-and-vinegars"…), or null; the wall groups by it the
+ * way the app does, with uncategorized rows under "other". `have` is true once
+ * the item is checked off. `source` is "recipe", "manual", or an app slug like
+ * "tada".
+ */
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: string | null;
+  have: boolean;
+  source: string;
+}
+
+/**
+ * GET /api/shopping. The whole list. `configured` is false when Enchanted Spoon
+ * isn't wired yet, so the view renders a calm "not connected" state (§6.2).
+ */
+export interface ShoppingListPayload {
+  items: ShoppingItem[];
+  configured: boolean;
+}
+
+/** POST /api/shopping/items. One item, typed on the wall. */
+export interface AddShoppingItemBody {
+  name: string;
+}
+
+/**
+ * What an add did, as Enchanted Spoon reports it. `added`: a new row.
+ * `reactivated`: a checked-off row with that name went back to "need".
+ * `already_listed`: it was already needed; nothing changed. `name` is the name
+ * as it reads on the list (the existing spelling on a match).
+ */
+export interface AddShoppingItemResult {
+  status: "added" | "reactivated" | "already_listed";
+  name: string;
+}
+
+/** Longest name Enchanted Spoon accepts for a shopping item. */
+export const SHOPPING_NAME_MAX = 255;

@@ -25,10 +25,11 @@ read-only and begins **writing** task completions; it also adds a **Settings**
 view for customizing the family colors, whose choice is Hearth's one piece of
 persisted state (spec D12). **Meals** is live — a read-only view of the current
 plan and tap-to-open meal cards (ingredients + recipe) from the real Enchanted
-Spoon backend (`docs/enchanted-spoon-integration.md`). The remaining views —
-Lists and Shopping — still render placeholders and land phase by phase. (The plan
-was reworked: Tasks split into **Clean** + **Chores**, and Recipes was replaced
-by **Shopping** — see the spec.)
+Spoon backend (`docs/enchanted-spoon-integration.md`). **Shopping** is live for
+reading the household list and **adding items** (see [Shopping](#shopping-phase-4));
+checking off, editing and removing come later. **Lists** still renders a
+placeholder. (The plan was reworked: Tasks split into **Clean** + **Chores**, and
+the Recipes placeholder became **Shopping** — see the spec.)
 
 ## Stack
 
@@ -136,7 +137,8 @@ components, and never reaches the browser bundle.
 | `TADA_MEMBERS` | 2 | JSON array of `{ memberKey, tadaUserId, role }` — the people the wall may complete tasks as (the acting-member allowlist). `memberKey` links to `MEMBERS` for name + color; `role` is `adult` or `kid`. |
 | `HEARTH_ADULT_ID` | 2 | Maryann's Tada! user id — whose session the Clean view is, and whose completions done-today shows. |
 | `HEARTH_TASKS_MOCK` | 2 | Local dev only — serves deterministic synthetic Tada! data so Clean & Chores work without the real API. Ignored in production. |
-| `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon. Meals read-only (**live** — token sent as `X-API-Key`, must equal Enchanted Spoon's `INTEGRATION_API_KEY`); Shopping read-write (later). |
+| `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon (**live** — token sent as `X-API-Key`, must equal Enchanted Spoon's `INTEGRATION_API_KEY`). Meals: read + mark cooked. Shopping: read + add an item. |
+| `HEARTH_MEALS_MOCK` | 4 | Local dev only — serves synthetic meals and a synthetic shopping list (adds work in dev-server memory). Ignored in production. |
 
 ### Timed view schedule
 
@@ -264,6 +266,27 @@ next-task-by-room read, and a per-kid chores read. Those are specified precisely
 in [`docs/tada-integration-requirements.md`](docs/tada-integration-requirements.md).
 Until they land, `/clean` and `/chores` degrade calmly to a "not connected"
 state (spec §6.2), and local development runs on `HEARTH_TASKS_MOCK=1`.
+
+## Shopping (Phase 4)
+
+The household's Enchanted Spoon shopping list, grouped by Enchanted Spoon's
+categories (A→Z, "Other" last), showing what's still needed. The field across the
+top adds an item: on the wall it opens the in-app keyboard, which stays up after
+each add so several items go in one after another (Done closes it); on a PC it's
+a real input and Enter adds. The new row is highlighted and a line confirms what
+happened.
+
+Hearth sends only the name. Enchanted Spoon decides the rest: it files the item
+under the category the household's recipes use for that ingredient ("milk" →
+Dairy, "Other" when unknown), skips it when it's already needed ("Milk is already
+on the list."), and moves a checked-off match back to "need" ("Coffee is back on
+the list."). Items land as manual items, quantity 1, exactly like a quick add in
+the app. Checking off, editing, removing and the Tada! supplies shelf are not
+built yet.
+
+Routes: `GET /api/shopping` and `POST /api/shopping/items` (both `requireDevice()`
+first), forwarding to Enchanted Spoon's `/api/hearth/shopping` and
+`/api/hearth/shopping/items`. Contract: `docs/enchanted-spoon-integration.md`.
 
 ## Target device
 

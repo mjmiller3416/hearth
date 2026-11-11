@@ -1,6 +1,13 @@
-import type { CardRecipe, Ingredient, MealCard, PlannedMeal } from "./types";
+import type {
+  AddShoppingItemResult,
+  CardRecipe,
+  Ingredient,
+  MealCard,
+  PlannedMeal,
+  ShoppingItem,
+} from "./types";
 
-// The Enchanted Spoon HTTP client (Phase 4, Meals — read-only). Server-side
+// The Enchanted Spoon HTTP client (Phase 4 — Meals and Shopping). Server-side
 // only: the device token is read here and sent as the `X-API-Key` header, and
 // never reaches the browser (spec §3.2). Mirrors the Tada! client's shape — thin
 // HTTP + normalization, errors thrown for the route to turn into a 502 so the
@@ -8,7 +15,7 @@ import type { CardRecipe, Ingredient, MealCard, PlannedMeal } from "./types";
 //
 // All routes are under `${ENCHANTED_SPOON_API_URL}/api/hearth`, the integration
 // router scoped by shared secret to the household account (§5.4). The wire shapes
-// (snake_case) are Enchanted Spoon's HearthMealPlanDTO / HearthMealCardDTO;
+// (snake_case) are Enchanted Spoon's Hearth*DTO contract (app/dtos/hearth_dtos.py);
 // they're normalized to Hearth's camelCase types here, ids coerced to strings.
 
 function baseUrl(): string {
@@ -172,4 +179,70 @@ export async function getMealCard(mealId: string): Promise<MealCard | null> {
     mealName: data.meal_name,
     recipes: (data.recipes ?? []).map(normalizeRecipe),
   };
+}
+
+// ── Shopping list ───────────────────────────────────────────────────────────
+
+interface RawShoppingItem {
+  id: number | string;
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  category: string | null;
+  have: boolean;
+  source: string;
+}
+
+function normalizeShoppingItem(i: RawShoppingItem): ShoppingItem {
+  return {
+    id: String(i.id),
+    name: i.name,
+    quantity: i.quantity ?? null,
+    unit: i.unit ?? null,
+    category: i.category ?? null,
+    have: Boolean(i.have),
+    source: i.source ?? "manual",
+  };
+}
+
+/** GET /shopping → the household shopping list, every row (needed and had). */
+export async function getShoppingList(): Promise<ShoppingItem[]> {
+  const res = await fetch(`${baseUrl()}/shopping`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Enchanted Spoon GET /shopping failed (${res.status}): ${detail}`);
+  }
+  const data = (await res.json()) as { items?: RawShoppingItem[] };
+  return (data.items ?? []).map(normalizeShoppingItem);
+}
+
+/**
+ * POST /shopping/items → add one item by name. Enchanted Spoon does the rest:
+ * it files the item under a category from the household's ingredient library,
+ * skips it when it's already needed, and moves a checked-off match back to
+ * "need". 201 when a row is created, 200 otherwise; either way the body says
+ * which happened.
+ */
+export async function addShoppingItem(name: string): Promise<AddShoppingItemResult> {
+  const res = await fetch(`${baseUrl()}/shopping/items`, {
+    method: "POST",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+    body: JSON.stringify({ name }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `Enchanted Spoon POST /shopping/items failed (${res.status}): ${detail}`,
+    );
+  }
+  const data = (await res.json()) as Partial<AddShoppingItemResult>;
+  const status =
+    data.status === "reactivated" || data.status === "already_listed"
+      ? data.status
+      : "added";
+  return { status, name: data.name ?? name };
 }

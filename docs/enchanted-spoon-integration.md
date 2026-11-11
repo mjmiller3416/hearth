@@ -1,6 +1,8 @@
-# Enchanted Spoon integration (Hearth Phase 4 — Meals)
+# Enchanted Spoon integration (Hearth Phase 4 — Meals and Shopping)
 
-Hearth's **Meals** view reads the household's current meal plan and, on tap, a
+Hearth's **Shopping** view reads the household shopping list and adds items to it
+(see [Shopping](#shopping--get-shopping-and-post-shoppingitems) below). Hearth's
+**Meals** view reads the household's current meal plan and, on tap, a
 meal's card (ingredients + recipe) from **Enchanted Spoon** — the same data its
 Meal Planner renders. It is **read-only but for one gesture** (spec D6, §5.4):
 the wall reads the plan and the card, and can **mark a meal cooked** so it drops
@@ -8,17 +10,8 @@ off the wall — but never assigns, swaps, or edits meals, and never *un*-comple
 one (restoring a mistaken completion stays in Enchanted Spoon). Planning stays on
 the phone.
 
-> **Status — `POST /meals/complete` is implemented on both sides; pending an
-> Enchanted Spoon deploy to go live.** The Hearth side (route, client, mock,
-> view) is deployed and verified against the mock. The Enchanted Spoon side is
-> implemented on branch `feat/hearth-meals-complete` in the enchanted-spoon repo
-> (`app/api/hearth.py`, `HearthCompleteMealDTO`, tests) but **not yet deployed**.
-> No auth change was needed: the integration user already writes (the Tada
-> shopping ingest uses the same `get_integration_user` path), so it was just the
-> one endpoint. Until that branch ships, tapping "Mark cooked" on the live wall
-> optimistically drops the meal, then — when the write 404/502s — lets it
-> reappear with a quiet inline note (spec §6.2). Once Enchanted Spoon deploys,
-> the gesture persists with no Hearth change.
+> **Status:** all five endpoints below are live on Enchanted Spoon `main`:
+> the two meal reads, `POST /meals/complete`, and the shopping read and add.
 
 Unlike the Tada! integration (still awaiting upstream endpoints — see
 [`tada-integration-requirements.md`](./tada-integration-requirements.md)), this
@@ -101,40 +94,76 @@ poll). Hearth normalizes any non-2xx to a quiet retry — see
 
 ---
 
+### Shopping — `GET /shopping` and `POST /shopping/items`
+
+**`GET /shopping`** returns the household list: every row, needed (`have:
+false`) and checked off (`have: true`). `category` is Enchanted Spoon's lowercase
+slug; Hearth groups the needed rows by it, "other" last, like the app does.
+
+```jsonc
+// 200
+{ "items": [
+  { "id": 3, "name": "Milk", "quantity": 1, "unit": "gal", "category": "dairy",
+    "have": false, "source": "manual" }        // source: recipe | manual | tada …
+] }
+```
+
+**`POST /shopping/items`** adds one item by name. Only `name` is required
+(trimmed, 1–255 chars); `category` is optional and Hearth doesn't send it.
+
+```jsonc
+// request
+{ "name": "milk" }
+
+// 201 → a new row        { "status": "added",          "name": "milk" }
+// 200 → was checked off  { "status": "reactivated",    "name": "Milk" }
+// 200 → already needed   { "status": "already_listed", "name": "Milk" }
+```
+
+On the Enchanted Spoon side this is `ShoppingService.add_named_item`: with no
+category it looks the name up in the account's ingredient library (exact name,
+case-insensitive, plural folded — "Eggs" finds "Egg"), else "other"; then it
+runs the same deduped batch add Genie uses (`add_manual_items`), so the item is
+a manual item, quantity 1, and a name already on the list is never duplicated.
+`name` in the response is the row's own spelling on a match. Check-off, edit and
+remove are not exposed to Hearth yet.
+
+---
+
 ## What was added on the Enchanted Spoon side
 
 A router registered under `/api/hearth`, authenticated by the existing
 shared-secret dependency. No new data access — it projects (and, for the one
 write, drives) what the planner, meal, and recipe services already do.
 
-- **`app/api/hearth.py`** — `GET /meals`, `GET /meals/{meal_id}`, and
-  `POST /meals/complete`, all behind `get_integration_user` (X-API-Key), scoped
-  to `INTEGRATION_USER_ID`, rate-limited. The complete route calls
-  `PlannerService.mark_completed` — the same path the Meal Planner uses.
+- **`app/api/hearth.py`** — `GET /meals`, `GET /meals/{meal_id}`,
+  `POST /meals/complete`, `GET /shopping` and `POST /shopping/items`, all behind
+  `get_integration_user` (X-API-Key), scoped to `INTEGRATION_USER_ID`,
+  rate-limited (60/min). The complete route calls
+  `PlannerService.mark_completed` — the same path the Meal Planner uses; the add
+  calls `ShoppingService.add_named_item`.
 - **`app/dtos/hearth_dtos.py`** — the stable contract DTOs above (including
   `HearthCompleteMealDTO`), plus pure mappers from the internal planner/meal/
   recipe DTOs. Decoupled from internal shapes on purpose, so refactors there
   don't silently break the wall.
 - Registered in **`app/router.py`** under the `hearth`/`integration` tags.
 - Tests: **`tests/test_hearth_meals.py`** (mappers, the read pipeline, and the
-  mark-cooked write pipeline).
+  mark-cooked write pipeline) and **`tests/test_hearth_shopping.py`** (DTOs,
+  category lookup, the add path, and both shopping routes end to end).
 
-The token now permits exactly these three calls — the two reads plus the single
-mark-cooked write — and nothing else: no un-complete, no settings, no Clerk-user
-data. No auth change was needed for the write; the integration user already
-writes (the Tada shopping ingest uses the same dependency). Everything beyond
-this one gesture stays read-only per spec D6.
-
-The reads (`GET /meals`, `GET /meals/{meal_id}`) are deployed and live. The
-write (`POST /meals/complete`) is implemented on branch
-`feat/hearth-meals-complete` and goes live on the wall once that branch ships.
+On `/api/hearth` the token permits exactly these five calls — three reads,
+mark cooked, and add a shopping item — and nothing else: no un-complete, no
+planning, no settings, no Clerk-user data. (The same secret also opens Tada's
+`/api/shopping/external/*` ingest; it is one integration key for trusted
+household apps.) No auth change was needed for either write; the integration
+user already writes through the same dependency.
 
 ---
 
 ## Operator setup
 
 1. On **Enchanted Spoon**, set `INTEGRATION_API_KEY` (a generated secret) and
-   `INTEGRATION_USER_ID` (the household account whose plan the wall shows). If the
+   `INTEGRATION_USER_ID` (the household account whose plan and list the wall shows). If the
    Tada shopping ingest is already wired, these exist — the meals reads and that
    write share the same integration account.
 2. On **Hearth** (Railway), set `ENCHANTED_SPOON_API_URL` to Enchanted Spoon's

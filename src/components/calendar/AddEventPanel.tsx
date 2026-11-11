@@ -23,6 +23,7 @@ import {
 import type { CalendarEvent, EditEventBody, Member } from "@/lib/calendar/types";
 import { colorVar, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import { OnScreenKeyboard } from "@/components/common/OnScreenKeyboard";
+import { useTouchWall } from "@/hooks/useTouchWall";
 import { useTextOn } from "@/components/common/ColorProvider";
 import { useTimeZone } from "@/components/common/TimeZone";
 import {
@@ -419,28 +420,9 @@ export function AddEventPanel({
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
-  // Touch walls type with the in-app on-screen keyboard (no native input ever
-  // focuses, so the OS keyboard can't appear and shrink the canvas). A PC/laptop
-  // (fine pointer, hover) instead gets a real text input so a physical keyboard
-  // works normally (Phase 2 #8). Computed once — this panel only renders client-side.
-  const [isTouch] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const mm = (q: string) =>
-      typeof window.matchMedia === "function" && window.matchMedia(q).matches;
-    // Touch capability — generous (coarse primary pointer OR any touch points) so
-    // the kiosk WebView is always caught.
-    const coarse = mm("(pointer: coarse)");
-    const hasTouchPoints =
-      typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
-    const touchCapable = coarse || hasTouchPoints;
-    // …but a device with a fine pointer (mouse/trackpad) is a PC, even if it also
-    // has a touchscreen. Only a touch-capable device with NO fine pointer is the
-    // wall kiosk. This is the fix for the OSK appearing on touchscreen PCs and
-    // blocking the physical keyboard (Todoist: "OSK on PC"). The wall reports no
-    // fine pointer, so it still gets the in-app keyboard and never the OS one.
-    const hasFinePointer = mm("(any-pointer: fine)");
-    return touchCapable && !hasFinePointer;
-  });
+  // Wall → in-app keyboard; PC → a real input (see useTouchWall). This panel
+  // only renders client-side, so the one-time check is safe here.
+  const isTouch = useTouchWall();
 
   useEffect(() => setShown(true), []);
 
