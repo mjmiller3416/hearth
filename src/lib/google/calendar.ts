@@ -365,8 +365,41 @@ function overlaps(ev: CalendarEvent, start: Date, end: Date): boolean {
  * Google isn't configured yet — the view then renders a calm empty grid.
  */
 export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]> {
-  if (isMockEnabled()) return presentEvents(getMockEvents(start, end));
-  if (!isGoogleConfigured()) return [];
+  return (await getEventsWithStatus(start, end)).events;
+}
+
+/** `getEvents` plus how complete and how fresh the read was. */
+export interface EventsRead {
+  events: CalendarEvent[];
+  /** Calendars Hearth tried to read (0 in mock mode or when unconfigured). */
+  calendarCount: number;
+  /** Calendars that failed and were skipped (their events are missing). */
+  failedCount: number;
+  /**
+   * When the stalest calendar that WAS read was last synced from Google (epoch
+   * ms), or null when nothing was read. A direct (out-of-window) fetch counts as
+   * synced now.
+   */
+  oldestSyncAt: number | null;
+}
+
+/**
+ * The same read as `getEvents`, but reporting skipped calendars and sync times
+ * instead of hiding them, for callers that must tell fresh from partial data
+ * (the Home Base summary). The wall keeps using `getEvents`.
+ */
+export async function getEventsWithStatus(start: Date, end: Date): Promise<EventsRead> {
+  if (isMockEnabled()) {
+    return {
+      events: presentEvents(getMockEvents(start, end)),
+      calendarCount: 0,
+      failedCount: 0,
+      oldestSyncAt: Date.now(),
+    };
+  }
+  if (!isGoogleConfigured()) {
+    return { events: [], calendarCount: 0, failedCount: 0, oldestSyncAt: null };
+  }
 
   const calendars = readCalendars();
   const now = new Date();
@@ -379,9 +412,13 @@ export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]
       try {
         if (inWindow) {
           const store = await ensureFresh(cal, now);
-          return [...store.events.values()].filter((ev) => overlaps(ev, start, end));
+          return {
+            ok: true,
+            syncedAt: store.lastSyncAt,
+            events: [...store.events.values()].filter((ev) => overlaps(ev, start, end)),
+          };
         }
-        return await directFetch(cal, start, end);
+        return { ok: true, syncedAt: Date.now(), events: await directFetch(cal, start, end) };
       } catch (err) {
         // One unreadable calendar must not blank the whole wall (spec §6.2). A
         // 404/403 here is a config problem — the calendar isn't shared with the
@@ -389,12 +426,18 @@ export async function getEvents(start: Date, end: Date): Promise<CalendarEvent[]
         // and log which one so the misconfigured share is diagnosable. The next
         // poll retries, so it self-heals once the share is fixed.
         console.error(`[calendar] skipping ${cal.id}:`, err);
-        return [] as CalendarEvent[];
+        return { ok: false, syncedAt: null, events: [] as CalendarEvent[] };
       }
     }),
   );
 
-  return presentEvents(perCalendar.flat());
+  const synced = perCalendar.filter((c) => c.ok).map((c) => c.syncedAt as number);
+  return {
+    events: presentEvents(perCalendar.flatMap((c) => c.events)),
+    calendarCount: calendars.length,
+    failedCount: perCalendar.filter((c) => !c.ok).length,
+    oldestSyncAt: synced.length ? Math.min(...synced) : null,
+  };
 }
 
 // ── Write path (Phase 1.5) ───────────────────────────────────────────────────

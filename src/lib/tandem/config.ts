@@ -22,6 +22,11 @@ const LANES: { child: TandemChild; memberKey: string; fallbackName: string }[] =
   { child: "ollie", memberKey: "ollie", fallbackName: "Ollie" },
 ];
 
+/** The shared MEMBERS key for a Tandem child ("link" → "lincoln"). */
+export function getMemberKeyForChild(child: TandemChild): string {
+  return LANES.find((l) => l.child === child)?.memberKey ?? child;
+}
+
 /** The two lanes, in Tandem's order, named and colored from MEMBERS. */
 export function getScheduleKids(): ScheduleKid[] {
   return LANES.map(({ child, memberKey, fallbackName }) => {

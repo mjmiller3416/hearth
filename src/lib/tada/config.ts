@@ -119,6 +119,11 @@ export function isAllowedMember(id: string): boolean {
   return membersById().has(id);
 }
 
+/** The shared MEMBERS key for a Tada! user id (e.g. "lincoln"), or null. */
+export function getMemberKeyForTadaId(id: string): string | null {
+  return parseConfig().find((m) => m.tadaUserId === id)?.memberKey ?? null;
+}
+
 /** The kids, for the Chores columns (checklist #12). */
 export function getKids(): TadaMember[] {
   return getTadaMembers().filter((m) => m.role === "kid");

@@ -9,8 +9,9 @@
 //
 // where <guard> is `requireDevice` (the wall's device cookie) — except for the
 // short, explicit lists below:
-//   - OAUTH_GUARDED: the MCP endpoint, which authenticates ChatGPT with an OAuth
-//     access token (`requireMcpAccess`) instead of the device cookie;
+//   - OAUTH_GUARDED: routes with their own token instead of the device cookie:
+//     the MCP endpoint (ChatGPT's OAuth access token, `requireMcpAccess`) and the
+//     Home Base feed (its bearer token, `requireHomeBaseToken`);
 //   - PUBLIC: routes that are the authentication itself or carry no household
 //     data (pairing, health, OAuth discovery/registration/consent/token/revoke).
 // Anything not listed must use requireDevice. A listed file that no longer
@@ -29,6 +30,11 @@ const DEFAULT_GUARD = { name: "requireDevice", module: "@/lib/auth" };
 
 const OAUTH_GUARDED = {
   "src/app/api/mcp/route.ts": { name: "requireMcpAccess", module: "@/lib/mcp/server" },
+  // Maryann's Home Base site: its own bearer token, accepted nowhere else.
+  "src/app/api/home-base/summary/route.ts": {
+    name: "requireHomeBaseToken",
+    module: "@/lib/homeBase/auth",
+  },
 };
 
 const PUBLIC = {

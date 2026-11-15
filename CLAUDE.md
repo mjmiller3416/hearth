@@ -26,7 +26,10 @@ Run from PowerShell, or from WSL as
   explicit list in `scripts/check-route-guards.mjs`).
 - `npm run check:mcp`: fails if a route method under `src/app/api` has no MCP
   tool (`routes` in `src/lib/mcp/tools.ts`) and isn't in `UNCOVERED_ROUTES`.
-- `npm run test:mcp`: the only test suite. Starts `next dev` on :3917 with every
+- `npm run test:home-base`: the Home Base feed end to end (:3918, mocks plus a fake
+  Homeroom/Every Cent in the test process, ~1 minute). Don't run it alongside
+  `test:mcp`: two `next dev`s can't share `.next`.
+- `npm run test:mcp`: the connector suite. Starts `next dev` on :3917 with every
   mock on and runs the connector end to end (OAuth discovery, DCR, consent,
   tokens, refresh, revoke, MCP tool calls) plus a few wall routes. ~1 minute.
 - `npm run lint`: already red on files outside recent work (13 errors, mostly
@@ -126,3 +129,23 @@ Run from PowerShell, or from WSL as
   stale preset (`reminders` in its result); phone reschedules only show up in
   `check_appointment_reminders`. The mock keeps reminders in memory.
 
+## Home Base feed (Maryann's dashboard site)
+
+- `GET /api/home-base/summary?date=YYYY-MM-DD&days=1..7`, read-only. Code in
+  `src/lib/homeBase/` (`types.ts` is the contract). One envelope per source
+  (`status`, `fetched_at`, `data_as_of`, `error`, `data`); each source has its own
+  time limit and one failing source never fails the response.
+- Auth: its own bearer token, digests in `HOME_BASE_TOKEN_SHA256` (comma list for
+  rotation; unset = 404). Guarded by `requireHomeBaseToken` (listed in
+  `check-route-guards.mjs`); the token opens nothing else and the device cookie
+  doesn't open it. In-process limit 30 requests/minute. Make tokens with
+  `node scripts/home-base-token.mjs <out-file>` (writes the raw token to the file,
+  prints only the digest). Revoke: remove the digest on Railway.
+- Sources: calendar (`getEventsWithStatus`, which reports skipped calendars and the
+  stalest sync instead of hiding them), Tandem, Spoon, Tada! (today only; other
+  dates answer `unavailable_for_date`; no counts or scores, spec D4), plus two
+  apps Hearth reads only here: Homeroom `GET /api/home-base/summary` (school hours
+  and Connexus lessons) and Every Cent `GET /api/home-base/budget-summary`. Each
+  of those checks its own key (`HOME_BASE_KEY_SHA256` there); Hearth holds the raw
+  keys in `HOMEROOM_HOME_BASE_KEY` / `EVERY_CENT_HOME_BASE_KEY` (URLs default to
+  production; override with `HOMEROOM_API_URL` / `EVERY_CENT_API_URL`).

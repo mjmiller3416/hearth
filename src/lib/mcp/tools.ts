@@ -65,6 +65,8 @@ export interface ToolDef {
 export const UNCOVERED_ROUTES: Record<string, string> = {
   "GET /api/settings": "Family colors are a display preference (theme) for the wall.",
   "PUT /api/settings": "Family colors are a display preference (theme) for the wall.",
+  "GET /api/home-base/summary":
+    "Home Base's own read-only feed (its token, not the wall's); ChatGPT reads each source through its own tools.",
 };
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
