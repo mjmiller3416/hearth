@@ -144,7 +144,7 @@ components, and never reaches the browser bundle.
 |---|---|---|
 | `HEARTH_DEVICE_TOKEN` | 0 | Long-lived device token for the `/setup` gate. |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REFRESH_TOKEN` | 1 · 1.5 | Google Calendar access. Phase 1.5 needs the `calendar.events` (read-write) scope; grant the household account "Make changes to events" on writable calendars. |
-| `GOOGLE_REMINDER_REFRESH_TOKEN` / `GOOGLE_REMINDER_MEMBER` | MCP | Optional. One person's own Google token (Maryann's) for the connector's reminder tools; Google keeps reminders per user, so the household token can't set her alarms. Capture with `node --env-file=.env.local scripts/google-reminder-consent.mjs`. `GOOGLE_REMINDER_MEMBER` is her member key (default: the first member). |
+| `GOOGLE_REMINDER_REFRESH_TOKEN` / `GOOGLE_REMINDER_MEMBER` | MCP | Optional. One person's own Google token (Maryann's) for the connector's reminder tools; Google keeps reminders per user, so the household token can't set her alarms. Capture with `railway run -- node scripts/google-reminder-consent.mjs link`, then `finish <file>` (see the script; it sets the variable on Railway). `GOOGLE_REMINDER_MEMBER` is her member key (default: the first member). |
 | `MEMBERS` | 1.5 | JSON array of `{ key, name, color, calendarId }` — the canonical, ordered people; each owns a Google calendar (their assigned-event write target). |
 | `FAMILY_CALENDAR_ID` | 1.5 | Shared family calendar id. Whole-family events are written here as one event; phone-made events here also show on the wall. (Replaces the old `CALENDAR_MAP`.) |
 | `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |

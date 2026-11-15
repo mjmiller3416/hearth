@@ -107,8 +107,14 @@ Run from PowerShell, or from WSL as
   Google calls): Google keeps `reminders` private to each user, so the household
   token can't set anyone's alarms (spec D9's correction). These run as one
   person's own token, `GOOGLE_REMINDER_REFRESH_TOKEN` (Maryann; captured with
-  `scripts/google-reminder-consent.mjs`), and refuse with "aren't set up" without
-  it. The only write is a PATCH of `reminders` alone with `If-Match` (etag) and
+  `scripts/google-reminder-consent.mjs`, run under `railway run` because the
+  Google client id/secret are only on Railway, not in `.env.local`), and refuse
+  with "aren't set up" without it. The OAuth client's only registered redirect is
+  the OAuth Playground (the household token came from there too), so the script
+  uses it: she signs in, copies the Playground page's address into a file, and
+  `finish <file>` sets the variable on Railway via stdin. Never put that address
+  on a `railway run` command line: it runs through cmd.exe and `&code=…` launches
+  VS Code. The only write is a PATCH of `reminders` alone with `If-Match` (etag) and
   `sendUpdates=none`, then a read-back. The "appointment" preset's 8 a.m. reminder
   is minutes before start, worked out in the event's zone; all-day and ≤ 8 a.m.
   starts are refused. `editEvent` rechecks after every edit and recalculates a
