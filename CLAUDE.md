@@ -103,6 +103,11 @@ Run from PowerShell, or from WSL as
   `UNCOVERED_ROUTES` entry, or the build fails. Settings (colors) is left out.
   `list_events` returns each event's `copies` (the real Google calendar/event
   ids behind a Hearth group's synthetic id).
+- Every Hearth event is on the family calendar (`FAMILY_CALENDAR_ID`,
+  miller.family3416@gmail.com, owned by Maryann's account): `reconcileEvent` adds a
+  family copy beside the assignees' own copies (spec D3, 2026-11-15). Her account
+  doesn't have Mitchell's or the kids' calendars, so the family copy is where her
+  reminders go (`suggested_copy` picks it when she isn't assigned).
 - Reminder tools (`src/lib/calendar/reminders.ts` rules, `src/lib/google/reminders.ts`
   Google calls): Google keeps `reminders` private to each user, so the household
   token can't set anyone's alarms (spec D9's correction). These run as one

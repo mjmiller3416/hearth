@@ -823,7 +823,13 @@ function patchDate(d: { date?: string; dateTime?: string; timeZone?: string }) {
 /**
  * Bring an event to `spec` across exactly the calendars it should live on:
  *   - assignment == all members → the single family calendar (when configured);
- *   - otherwise → one copy per assignee's calendar.
+ *   - otherwise → one copy per assignee's calendar, PLUS a copy on the family
+ *     calendar (when configured), so the family calendar holds every Hearth
+ *     event (owner's choice, 2026-11-15: Maryann works from it, and her own
+ *     reminders can only live on a calendar her account has). The family copy
+ *     shares the hearthGroupId, so the wall still de-dups to one chip.
+ *     A plain (untagged, phone-made personal) event gets no family copy: without
+ *     a group id the wall couldn't fold the two back together.
  * Patches copies that should stay, creates the ones that are missing, and — only
  * after at least one create/patch succeeds — deletes the ones that shouldn't
  * exist. Best-effort: per-calendar failures are reported, never fatal, and the
@@ -839,8 +845,13 @@ export async function reconcileEvent(
   const isFamily = spec.memberKeys.length === getMembers().length;
   const family = getFamilyCalendarId();
   const memberTargets = getMemberCalendarTargets(spec.memberKeys);
+  const personal = memberTargets.map((t) => t.calendarId);
   const desiredCalendars =
-    isFamily && family ? [family] : memberTargets.map((t) => t.calendarId);
+    isFamily && family
+      ? [family]
+      : family && !target.plain && !personal.includes(family)
+        ? [...personal, family]
+        : personal;
 
   // Assigned people with no calendar configured — reported, not fatal.
   if (!(isFamily && family)) {

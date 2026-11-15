@@ -421,6 +421,15 @@ async function run() {
     check("create_event (write)", !created.json?.result?.isError && ev?.title === "MCP test dentist",
       JSON.stringify(created.json).slice(0, 300));
 
+    check("a one-person event also gets a copy on the family calendar",
+      (ev?.copies ?? []).some((c) => c.calendarId === "family@example.com") && ev.copies.length === 2,
+      JSON.stringify(ev?.copies));
+    const everyone = await call(access, "create_event", { title: "MCP test family dinner", start: `${today}T18:00` });
+    const fam = everyone.json?.result?.structuredContent?.event;
+    check("a whole-family event is one event on the family calendar",
+      fam?.copies?.length === 1 && fam.copies[0].calendarId === "family@example.com", JSON.stringify(fam?.copies));
+    if (fam?.hearthGroupId) await call(access, "delete_event", { target: { hearth_group_id: fam.hearthGroupId } });
+
     const badMember = await call(access, "create_event", { title: "x", start: `${today}T15:00`, members: ["nobody"] });
     check("a refused write comes back as isError with a sentence",
       badMember.json?.result?.isError === true && /Unknown member/.test(badMember.json.result.content[0].text));

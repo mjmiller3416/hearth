@@ -194,8 +194,9 @@ The model is **per-member calendars**: each person owns a Google calendar, and
 **assignment decides where an event lives** — there is no "which calendar"
 picker. A whole-family event is one event on the shared family calendar; an event
 assigned to a subset of people fans out one copy per assignee's own calendar
-(linked by a `hearthGroupId`), and the wall de-dupes those copies back into one
-banded chip (spec D3).
+plus one on the family calendar, so the family calendar has every Hearth event
+(all linked by a `hearthGroupId`), and the wall de-dupes those copies back into
+one banded chip (spec D3).
 
 Event color comes from the assigned members, falling back to the owning
 calendar's member for untagged events. One member fills the chip solid; two or

@@ -54,7 +54,8 @@ const SAMPLE_TITLES = [
  * zero config). Produces the RAW per-calendar shapes the real feed would, so
  * `getEvents` -> `presentEvents` exercises the actual filter + de-dup:
  *   - Hearth coordinated events, FANNED OUT (one copy per assigned member's
- *     calendar, sharing a hearthGroupId) — these collapse to one banded chip;
+ *     calendar plus one on the family calendar, or the family calendar alone
+ *     for everyone, all sharing a hearthGroupId) — these collapse to one chip;
  *     1–4 members exercise solid / band / everyone rendering.
  *   - Family-calendar events (no group) — shown neutral.
  *   - Private personal events on member calendars (no group) — FILTERED OUT.
@@ -113,10 +114,19 @@ export function getMockEvents(start: Date, end: Date): CalendarEvent[] {
     countdown: boolean,
   ) => {
     const groupId = `mock-group-${tag}-${groupSeq++}`;
+    // Everyone → the family calendar alone (reconcileEvent's rule).
+    if (familyId && memberKeys.length === members.length) {
+      push(`${groupId}-family`, familyId, title, startStr, endStr, allDay, memberKeys, groupId, countdown);
+      return;
+    }
     for (const key of memberKeys) {
       const m = members.find((mm) => mm.key === key);
       if (!m?.calendarId) continue;
       push(`${groupId}-${key}`, m.calendarId, title, startStr, endStr, allDay, memberKeys, groupId, countdown);
+    }
+    // ...plus the family calendar's copy, as reconcileEvent writes it.
+    if (familyId) {
+      push(`${groupId}-family`, familyId, title, startStr, endStr, allDay, memberKeys, groupId, countdown);
     }
   };
 
