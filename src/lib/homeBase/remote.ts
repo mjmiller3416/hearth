@@ -1,3 +1,4 @@
+import { getMemberByKey } from "@/lib/calendar/config";
 import { emptyEnvelope, errorEnvelope, notConfigured, okEnvelope } from "./envelope";
 import type { SourceEnvelope } from "./types";
 
@@ -134,8 +135,8 @@ export async function homeroomSources(date: string): Promise<HomeroomEnvelopes> 
       key,
       HOMEROOM_TIMEOUT,
     );
-    const hours = section(body, "school_hours");
-    const lessons = section(body, "lessons");
+    const hours = withMemberKeys(section(body, "school_hours"));
+    const lessons = withMemberKeys(section(body, "lessons"));
     return {
       // School hours are as current as the family record's last change.
       school_hours: fromSection("Homeroom", hours, fetchedAt, str(hours?.record_updated_at)),
@@ -147,6 +148,30 @@ export async function homeroomSources(date: string): Promise<HomeroomEnvelopes> 
     const env = remoteError<unknown>("Homeroom", err);
     return { school_hours: env, lessons: env };
   }
+}
+
+/**
+ * Homeroom names each child by its record id; every other source uses the
+ * shared MEMBERS keys ("lincoln", "ollie"). Rewrite `child` to the feed's
+ * person shape {key, name} so one key means one kid across the whole response,
+ * keeping Homeroom's id as `source_child_id`. A child whose name matches no
+ * member keeps the record id as its key.
+ */
+function withMemberKeys(sec: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!sec || !Array.isArray(sec.children)) return sec;
+  const children = (sec.children as Record<string, unknown>[]).map((c) => {
+    if (!c || typeof c !== "object") return c;
+    const { name, child, ...rest } = c;
+    const display = str(name);
+    const key = display ? display.trim().toLowerCase() : null;
+    const member = key ? getMemberByKey(key) : undefined;
+    return {
+      child: { key: member ? member.key : str(child) ?? key, name: member?.name ?? display },
+      source_child_id: str(child),
+      ...rest,
+    };
+  });
+  return { ...sec, children };
 }
 
 /** The stalest per-child `fetched_at` in the lessons section, or null. */

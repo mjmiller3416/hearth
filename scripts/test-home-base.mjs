@@ -65,14 +65,14 @@ const HOMEROOM_BODY = {
     status: "ok",
     error: null,
     record_updated_at: "2026-11-15T18:30:00.000Z",
-    children: [{ child: "lincoln", name: "Lincoln", date_minutes: 95, week_minutes: null }],
+    children: [{ child: "rec-1111", name: "Lincoln", date_minutes: 95, week_minutes: null }],
   },
   lessons: {
     status: "partial",
     error: { code: "bridge_timeout", message: "Ollie's planner didn't load." },
     children: [
-      { child: "lincoln", status: "ok", fetched_at: "2026-11-15T19:55:00.000Z", cached: true, lessons: [] },
-      { child: "ollie", status: "error", fetched_at: null, cached: false, lessons: null },
+      { child: "rec-1111", name: "Lincoln", status: "ok", fetched_at: "2026-11-15T19:55:00.000Z", cached: true, lessons: [] },
+      { child: "rec-2222", name: "Ollie", status: "error", fetched_at: null, cached: false, lessons: null },
     ],
   },
 };
@@ -240,6 +240,12 @@ async function run() {
     check("school_hours ok, data_as_of = Homeroom's record time",
       hours?.status === "ok" && hours?.data_as_of === "2026-11-15T18:30:00.000Z");
     check("school_hours keeps nulls as nulls", hours?.data?.children?.[0]?.week_minutes === null);
+    const kid = hours?.data?.children?.[0];
+    check("Homeroom's child ids become member keys, original kept",
+      kid?.child?.key === "lincoln" && kid?.child?.name === "Lincoln" && kid?.source_child_id === "rec-1111",
+      JSON.stringify(kid?.child));
+    check("lessons children use member keys too",
+      json?.sources?.lessons?.data?.children?.map((c) => c.child.key).join() === "lincoln,ollie");
     check("school_hours envelope fields aren't duplicated into data", hours?.data && !("status" in hours.data));
     const lessons = json?.sources?.lessons;
     check("lessons partial with Homeroom's error", lessons?.status === "partial" && lessons?.error?.code === "bridge_timeout");
