@@ -341,6 +341,7 @@ export function CalendarView() {
       actions={
         <CalendarControls
           mode={mode}
+          title={title}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
           onToday={goToday}

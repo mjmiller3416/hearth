@@ -2,9 +2,16 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// The header-right controls (Phase 1 #11, #12): previous / today / next, and a
-// Month · Week view toggle. Sits in the ViewFrame's actions slot, beside the
-// stale stamp. Touch-sized targets for a hand reaching up to a wall (spec §6.1).
+// The header-right controls (Phase 1 #11, #12): the period on show, previous /
+// today / next, and a Month · Week view toggle. Sits in the ViewFrame's actions
+// slot, beside the stale stamp. Touch-sized targets for a hand reaching up to a
+// wall (spec §6.1).
+//
+// The period label ("December 2026", "Nov 30 – Dec 6") lives here because the
+// ViewFrame title is hidden on the calendar (tags-left / controls-right row) and
+// the main header always shows TODAY — without it, stepping to another month
+// left nothing on screen naming the month being viewed. Fixed width so the
+// arrows don't shift under a finger tapping through months.
 
 type ViewMode = "month" | "week";
 
@@ -31,12 +38,15 @@ function IconButton({
 
 export function CalendarControls({
   mode,
+  title,
   onPrev,
   onNext,
   onToday,
   onSetMode,
 }: {
   mode: ViewMode;
+  /** The period being viewed: monthTitle() or weekTitle() of the anchor. */
+  title: string;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
@@ -44,6 +54,12 @@ export function CalendarControls({
 }) {
   return (
     <div className="flex items-center gap-4">
+      <span
+        aria-live="polite"
+        className="w-72 whitespace-nowrap text-right font-display text-title leading-none text-ink"
+      >
+        {title}
+      </span>
       <div className="flex items-center gap-1">
         <IconButton onClick={onPrev} label="Previous">
           <ChevronLeft className="size-8" strokeWidth={2} aria-hidden />
