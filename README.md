@@ -113,9 +113,25 @@ one (spec §5.3). The write list is closed at completion + undo for this phase;
 anything more is a spec amendment (D11).
 
 The only unauthenticated surfaces are `/setup` (the pairing route, in the
-`app/(public)/` group) and `/health` (a literal `200`). **Any new page or route
-handler must add its own check** — do not reintroduce a middleware gate and
-assume it protects anything.
+`app/(public)/` group), `/health` (a literal `200`), and the ChatGPT connector's
+OAuth endpoints below. **Any new page or route handler must add its own check** —
+do not reintroduce a middleware gate and assume it protects anything.
+`npm run check:auth` (run before every build) enforces this for route handlers:
+each must open with `const denied = await requireDevice(); if (denied) return denied;`
+unless it is on the short, explicit list in `scripts/check-route-guards.mjs`.
+
+**The ChatGPT connector is the one deliberate exception to `requireDevice()`.**
+`/api/mcp` authenticates ChatGPT with an OAuth 2.1 access token instead
+(`requireMcpAccess()`, likewise its first statement). The OAuth endpoints
+(`/api/oauth/register|authorize|token|revoke`) and the discovery documents
+(`/.well-known/oauth-protected-resource[/api/mcp]`,
+`/.well-known/oauth-authorization-server`) are public because they *are* the
+sign-in or carry no household data. Consent asks for a connect password
+(`HEARTH_MCP_PASSWORD`, constant-time, rate limited) unless the browser already
+holds the wall's device cookie. An MCP access token never opens a wall route,
+and the device cookie never opens `/api/mcp`. MCP tools run the same action
+functions as the wall's routes (`src/lib/<area>/actions.ts`), so they get exactly
+the same validation and allowlists. Details: CLAUDE.md → "ChatGPT connector".
 
 ## Configuration
 
@@ -139,6 +155,10 @@ components, and never reaches the browser bundle.
 | `HEARTH_TASKS_MOCK` | 2 | Local dev only — serves deterministic synthetic Tada! data so Clean & Chores work without the real API. Ignored in production. |
 | `ENCHANTED_SPOON_API_URL` / `ENCHANTED_SPOON_DEVICE_TOKEN` | 4 | Enchanted Spoon (**live** — token sent as `X-API-Key`, must equal Enchanted Spoon's `INTEGRATION_API_KEY`). Meals: read + mark cooked. Shopping: read + add an item. |
 | `HEARTH_MEALS_MOCK` | 4 | Local dev only — serves synthetic meals and a synthetic shopping list (adds work in dev-server memory). Ignored in production. |
+| `HEARTH_PUBLIC_URL` | MCP | Public origin (`https://…`), required in production for the ChatGPT connector's OAuth issuer and resource URLs. |
+| `HEARTH_MCP_SECRET` | MCP | HMAC key for the connector's client ids, codes and tokens (32+ chars). Rotating it disconnects every ChatGPT connection. |
+| `HEARTH_MCP_PASSWORD` | MCP | The connect password asked on the connector's consent page (the wall's own browser skips it). |
+| `HEARTH_MCP_ENABLED` | MCP | Kill switch for the connector: `0`/`false`/`off` → every connector route 404s. Default on. |
 
 ### Timed view schedule
 

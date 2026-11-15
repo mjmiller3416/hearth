@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "check:auth": "node scripts/check-protected-guards.mjs",
-    "prebuild": "npm run check:auth",
+    "check:auth": "node scripts/check-protected-guards.mjs && node scripts/check-route-guards.mjs",
+    "check:mcp": "node scripts/check-mcp-coverage.mjs",
+    "prebuild": "npm run check:auth && npm run check:mcp",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:mcp": "node scripts/test-mcp.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.561.0",

@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
 import { requireDevice } from "@/lib/auth";
-import { getAdultMember, hasTadaCredentials } from "@/lib/tada/config";
-import { getRooms } from "@/lib/tada/client";
-import { isTasksMockEnabled, mockRooms } from "@/lib/tada/mock";
-import type { RoomsPayload } from "@/lib/tada/types";
+import { toResponse } from "@/lib/action";
+import { listRooms } from "@/lib/tada/actions";
 
 // GET /api/tasks/rooms  (Phase 2 #4)
 //
@@ -20,16 +17,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const denied = await requireDevice();
   if (denied) return denied;
-
-  const mock = isTasksMockEnabled();
-  const configured = mock || hasTadaCredentials();
-  const adult = getAdultMember();
-
-  try {
-    const rooms = mock ? mockRooms() : configured ? await getRooms() : [];
-    return NextResponse.json({ rooms, adult, configured } satisfies RoomsPayload);
-  } catch (err) {
-    console.error("[api/tasks/rooms] upstream error:", err);
-    return NextResponse.json({ error: "upstream unavailable" }, { status: 502 });
-  }
+  return toResponse(await listRooms());
 }

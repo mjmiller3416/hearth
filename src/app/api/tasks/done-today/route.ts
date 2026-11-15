@@ -1,9 +1,6 @@
-import { NextResponse } from "next/server";
 import { requireDevice } from "@/lib/auth";
-import { getAdultId, hasTadaCredentials } from "@/lib/tada/config";
-import { getDoneToday } from "@/lib/tada/client";
-import { isTasksMockEnabled, mockDoneToday } from "@/lib/tada/mock";
-import type { DoneTodayPayload } from "@/lib/tada/types";
+import { toResponse } from "@/lib/action";
+import { doneToday } from "@/lib/tada/actions";
 
 // GET /api/tasks/done-today  (Phase 2 #5)
 //
@@ -16,17 +13,5 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const denied = await requireDevice();
   if (denied) return denied;
-
-  const mock = isTasksMockEnabled();
-  if (!mock && !hasTadaCredentials()) {
-    return NextResponse.json({ completions: [] } satisfies DoneTodayPayload);
-  }
-
-  try {
-    const completions = mock ? mockDoneToday() : await getDoneToday(getAdultId());
-    return NextResponse.json({ completions } satisfies DoneTodayPayload);
-  } catch (err) {
-    console.error("[api/tasks/done-today] upstream error:", err);
-    return NextResponse.json({ error: "upstream unavailable" }, { status: 502 });
-  }
+  return toResponse(await doneToday());
 }

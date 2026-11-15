@@ -1,9 +1,7 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { requireDevice } from "@/lib/auth";
-import { hasSpoonCredentials } from "@/lib/spoon/config";
-import { getMealCard } from "@/lib/spoon/client";
-import { isMealsMockEnabled, mockMealCard } from "@/lib/spoon/mock";
-import type { MealCardPayload } from "@/lib/spoon/types";
+import { toResponse } from "@/lib/action";
+import { mealCard } from "@/lib/spoon/actions";
 
 // GET /api/meals/<id>  (Phase 4, §4.5, §5.4)
 //
@@ -21,19 +19,6 @@ export async function GET(
 ) {
   const denied = await requireDevice();
   if (denied) return denied;
-
   const { id } = await ctx.params;
-  const mock = isMealsMockEnabled();
-
-  if (!mock && !hasSpoonCredentials()) {
-    return NextResponse.json({ card: null } satisfies MealCardPayload);
-  }
-
-  try {
-    const card = mock ? mockMealCard(id) : await getMealCard(id);
-    return NextResponse.json({ card } satisfies MealCardPayload);
-  } catch (err) {
-    console.error("[api/meals/[id]] upstream error:", err);
-    return NextResponse.json({ error: "upstream unavailable" }, { status: 502 });
-  }
+  return toResponse(await mealCard(id));
 }

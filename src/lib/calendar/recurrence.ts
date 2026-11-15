@@ -55,7 +55,7 @@ function tzOffsetMs(instant: Date, tz: string): number {
 // Convert wall-clock components in `tz` to the true UTC instant. One-shot
 // approximation (ignores the rare DST-transition ambiguity) — fine for a
 // household wall picking an event's end-of-recurrence date.
-function zonedWallToUtc(
+export function zonedWallToUtc(
   y: number,
   mo0: number,
   d: number,
