@@ -68,6 +68,13 @@ export interface CalendarEvent {
    * least one element (a neutral) so a chip is never colorless.
    */
   colors: string[];
+  /**
+   * The real Google event behind each per-person copy, set on a de-duped Hearth
+   * group's representative (whose `id` is synthetic). Absent on a plain event,
+   * whose own {calendarId, id} is its only copy. The MCP tools hand these out so
+   * a caller can address one copy (e.g. to set its reminders).
+   */
+  copies?: { calendarId: string; eventId: string }[];
 }
 
 /**

@@ -316,8 +316,13 @@ function occToken(ev: CalendarEvent): string {
 // POST response (built by running this same de-dup over the inserted copies) and
 // the later poll produce the same id — the optimistic merge matches by construction.
 function representative(copies: CalendarEvent[]): CalendarEvent {
-  const chosen = [...copies].sort((a, b) => a.calendarId.localeCompare(b.calendarId))[0];
-  return { ...chosen, id: `hearth:${chosen.hearthGroupId}:${occToken(chosen)}` };
+  const sorted = [...copies].sort((a, b) => a.calendarId.localeCompare(b.calendarId));
+  const chosen = sorted[0];
+  return {
+    ...chosen,
+    id: `hearth:${chosen.hearthGroupId}:${occToken(chosen)}`,
+    copies: sorted.map((c) => ({ calendarId: c.calendarId, eventId: c.id })),
+  };
 }
 
 /** Collapse fan-out copies (same hearthGroupId + occurrence) into one event. */

@@ -8,6 +8,12 @@ import {
 import { getFamilyCalendarId, getMembers, hasReadCalendars } from "@/lib/calendar/config";
 import { zonedFields } from "@/lib/calendar/dates";
 import { concernsFamily, memberConcerns } from "@/lib/calendar/event";
+import {
+  APPOINTMENT_PRESET,
+  checkAppointmentReminders,
+  getEventReminders,
+  updateEventReminders,
+} from "@/lib/calendar/reminders";
 import { resolveTimeZone, zonedWallToUtc } from "@/lib/calendar/recurrence";
 import type { CalendarEvent, CalendarPayload, Member, RepeatRule } from "@/lib/calendar/types";
 import { isMockEnabled } from "@/lib/google/mock";
@@ -143,6 +149,12 @@ function shapeEvent(ev: CalendarEvent, members: Member[], tz: string) {
     target: ev.hearthGroupId
       ? { hearth_group_id: ev.hearthGroupId }
       : { calendar_id: ev.calendarId, event_id: ev.id },
+    // The real Google event behind each person's copy: stable references for
+    // the reminder tools (a Hearth event has one copy per person's calendar).
+    copies: (ev.copies ?? [{ calendarId: ev.calendarId, eventId: ev.id }]).map((c) => ({
+      calendar_id: c.calendarId,
+      event_id: c.eventId,
+    })),
   };
 }
 
@@ -340,7 +352,10 @@ export const TOOLS: ToolDef[] = [
         reminder_minutes: {
           type: "integer",
           enum: [0, 10, 30, 60, 1440],
-          description: "Phone reminder this many minutes before (0 = at the start). Omit for none.",
+          description:
+            "A reminder this many minutes before (0 = at the start), set as Hearth's own household " +
+            "Google account. Google keeps reminders per person, so this does NOT alarm Maryann's " +
+            "phone; for her alarms use update_event_reminders afterwards. Omit for none.",
         },
       },
       required: ["title", "start"],
@@ -373,7 +388,8 @@ export const TOOLS: ToolDef[] = [
     description:
       "Change an event: send every field as it should end up (copy unchanged ones from " +
       "list_events). Changing members moves it between calendars. Repeating events can't be " +
-      "changed here (do that on a phone).",
+      "changed here (do that on a phone). If Maryann's appointment reminders are on it, a new " +
+      "time recalculates the 8 a.m. one; `reminders` in the result says what happened.",
     inputSchema: {
       type: "object",
       properties: {
@@ -420,6 +436,109 @@ export const TOOLS: ToolDef[] = [
       const target = readTarget(args);
       if (!target) return fail("Give the event's target from list_events.");
       return deleteEvent(target);
+    },
+  },
+
+  // ── Reminders (one person's own alarms: Maryann's) ──
+  {
+    name: "get_event_reminders",
+    title: "Get event reminders",
+    description:
+      "Maryann's own reminders on an event, read as her Google account (Google keeps reminders " +
+      "per person). Returns every copy of the event (a Hearth event has one per person's " +
+      "calendar) with its calendar_id and event_id, the calendar's name, her access_role and " +
+      "can_update, the time zone, start and end, whether it repeats and what a change would " +
+      "apply to, her pop-ups with when each fires, the calendar's defaults, and " +
+      "appointment_check (whether the appointment preset is set and still fits the start). " +
+      "suggested_copy is the one to set: on her own calendar when there is one. Setting reminders " +
+      "on more than one copy would alarm her twice.",
+    inputSchema: {
+      type: "object",
+      properties: { target: TARGET_SCHEMA },
+      required: ["target"],
+      additionalProperties: false,
+    },
+    annotations: READ,
+    routes: [],
+    async run(args) {
+      const target = readTarget(args);
+      if (!target) return fail("Give the event's target from list_events.");
+      return getEventReminders(target);
+    },
+  },
+  {
+    name: "update_event_reminders",
+    title: "Set event reminders",
+    description:
+      "Replace Maryann's reminders on ONE copy of an event (calendar_id and event_id from " +
+      "get_event_reminders) with pop-ups, as her Google account. Changes nothing else: title, " +
+      "times, attendees, repeats and the rest stay as they are, and nobody is emailed. preset " +
+      `"${APPOINTMENT_PRESET}" = 1 week, 3 days, 1 day, 8:00 AM the morning of, and 1 hour before; ` +
+      "the 8 a.m. one is worked out from this event's start in its own time zone. All-day " +
+      "events and events starting at or before 8 a.m. are refused with a reason, not guessed. Or " +
+      "give minutes (up to 5, each 0-40320). dry_run shows the plan without saving. After saving " +
+      "it reads the event back and reports verified, preserved, before and after. On a repeating " +
+      "event, applies_to says whether it covers the series or one occurrence. Ask Maryann first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        calendar_id: { type: "string", description: "calendar_id of one copy, from get_event_reminders." },
+        event_id: { type: "string", description: "event_id of that copy, from get_event_reminders." },
+        preset: { type: "string", enum: [APPOINTMENT_PRESET], description: "The appointment reminders." },
+        minutes: {
+          type: "array",
+          items: { type: "integer", minimum: 0, maximum: 40320 },
+          maxItems: 5,
+          description: "Exact pop-ups, minutes before the start, instead of a preset.",
+        },
+        dry_run: { type: "boolean", description: "Show what would be set without saving. Default false." },
+      },
+      required: ["calendar_id", "event_id"],
+      additionalProperties: false,
+    },
+    annotations: write(false, true),
+    routes: [],
+    run: (args) =>
+      updateEventReminders({
+        calendarId: str(args, "calendar_id"),
+        eventId: str(args, "event_id"),
+        preset: str(args, "preset"),
+        minutes: args.minutes,
+        dryRun: args.dry_run === true,
+      }),
+  },
+  {
+    name: "check_appointment_reminders",
+    title: "Check appointment reminders",
+    description:
+      "Find events in a date range (at most 62 days) that carry Maryann's appointment reminders " +
+      "and say which no longer fit: needs_recalculation means the event moved (for example on a " +
+      "phone) and the 8 a.m. reminder is stale, so set the preset again; flagged means it is now " +
+      "all-day or starts at or before 8 a.m. Read-only. Rescheduling through update_event " +
+      "recalculates by itself and reports it in `reminders`.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        start_date: { type: "string", description: "First day, YYYY-MM-DD." },
+        end_date: { type: "string", description: "Last day, YYYY-MM-DD (inclusive). Defaults to 30 days on." },
+      },
+      required: ["start_date"],
+      additionalProperties: false,
+    },
+    annotations: READ,
+    routes: [],
+    async run(args) {
+      const tz = resolveTimeZone();
+      const startDate = str(args, "start_date") ?? "";
+      const endDate = str(args, "end_date") ?? (isRealDate(startDate) ? addDaysIso(startDate, 30) : "");
+      if (!isRealDate(startDate) || !isRealDate(endDate)) {
+        return fail("Dates must be real days written YYYY-MM-DD.");
+      }
+      if (endDate < startDate) return fail("end_date must be on or after start_date.");
+      return checkAppointmentReminders(
+        householdMidnight(startDate, tz),
+        householdMidnight(addDaysIso(endDate, 1), tz),
+      );
     },
   },
 

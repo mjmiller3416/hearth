@@ -97,8 +97,21 @@ Run from PowerShell, or from WSL as
   production has the same values.
 - Kill switch: `HEARTH_MCP_ENABLED=0` (every connector route 404s). Disconnect
   everyone: set a new `HEARTH_MCP_SECRET` on Railway.
-- Tools (17) call the same action functions as the wall's routes, so the
+- Tools (20) call the same action functions as the wall's routes, so the
   allowlists hold (member calendars, read-set allowlist on edit/delete, the
   Tada! acting-member allowlist). A new wall route needs a tool or an
   `UNCOVERED_ROUTES` entry, or the build fails. Settings (colors) is left out.
+  `list_events` returns each event's `copies` (the real Google calendar/event
+  ids behind a Hearth group's synthetic id).
+- Reminder tools (`src/lib/calendar/reminders.ts` rules, `src/lib/google/reminders.ts`
+  Google calls): Google keeps `reminders` private to each user, so the household
+  token can't set anyone's alarms (spec D9's correction). These run as one
+  person's own token, `GOOGLE_REMINDER_REFRESH_TOKEN` (Maryann; captured with
+  `scripts/google-reminder-consent.mjs`), and refuse with "aren't set up" without
+  it. The only write is a PATCH of `reminders` alone with `If-Match` (etag) and
+  `sendUpdates=none`, then a read-back. The "appointment" preset's 8 a.m. reminder
+  is minutes before start, worked out in the event's zone; all-day and ≤ 8 a.m.
+  starts are refused. `editEvent` rechecks after every edit and recalculates a
+  stale preset (`reminders` in its result); phone reschedules only show up in
+  `check_appointment_reminders`. The mock keeps reminders in memory.
 

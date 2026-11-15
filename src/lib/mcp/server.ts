@@ -20,7 +20,9 @@ const INSTRUCTIONS =
   "cleaning task, check tasks off, undo), Enchanted Spoon meals and the shopping list (read " +
   "the plan and recipes, mark a meal cooked, add items) and the kids' school week from Tandem. " +
   "Call get_household first for today's date, the time zone, and the member keys and ids the " +
-  "other tools take. Dates are YYYY-MM-DD and times HH:MM in the household's time zone.";
+  "other tools take. Dates are YYYY-MM-DD and times HH:MM in the household's time zone. " +
+  "Maryann's own phone alarms on events are get_event_reminders, update_event_reminders and " +
+  "check_appointment_reminders (read and written as her Google account).";
 
 /** The 401 that starts ChatGPT's OAuth discovery (RFC 9728 §5.1). */
 function unauthorized(origin: string, presented: boolean): Response {

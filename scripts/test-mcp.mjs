@@ -56,6 +56,12 @@ function check(name, cond, detail = "") {
   }
 }
 
+/** "YYYY-MM-DD" plus whole days. */
+const addDays = (iso, n) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
 const b64url = (buf) => Buffer.from(buf).toString("base64url");
 const pkce = () => {
   const verifier = b64url(randomBytes(32));
@@ -322,7 +328,7 @@ async function run() {
     check("ping", ping.json?.result && Object.keys(ping.json.result).length === 0);
     const list = await rpc(access, "tools/list");
     const tools = list.json?.result?.tools ?? [];
-    check("tools/list returns 17 tools", tools.length === 17, `got ${tools.length}`);
+    check("tools/list returns 20 tools", tools.length === 20, `got ${tools.length}`);
     check("every tool has a schema and annotations", tools.every((t) =>
       t.inputSchema?.type === "object" && typeof t.annotations?.readOnlyHint === "boolean" &&
       t.annotations.openWorldHint === false && t.description));
@@ -337,6 +343,75 @@ async function run() {
     const events = await call(access, "list_events", { start_date: today, end_date: today.slice(0, 8) + "28" });
     const evs = events.json?.result?.structuredContent?.events;
     check("list_events (read)", Array.isArray(evs) && events.json.result.content?.[0]?.type === "text", JSON.stringify(events.json).slice(0, 300));
+
+    check("list_events gives each event's Google copies", Array.isArray(evs) && evs.length > 0 &&
+      evs.every((e) => Array.isArray(e.copies) && e.copies.length > 0 && e.copies.every((c) => c.calendar_id && c.event_id)));
+
+    // ── Reminders (Maryann's own; mock store) ──
+    const month = await call(access, "list_events", { start_date: today, end_date: addDays(today, 27) });
+    const all = month.json?.result?.structuredContent?.events ?? [];
+    const timed = all.find((e) => !e.all_day && Number(e.start.slice(11, 13)) >= 10);
+    const allDay = all.find((e) => e.all_day);
+    check("reminder fixtures: a timed event after 10 a.m. and an all-day event", Boolean(timed && allDay));
+    if (timed) {
+      const got = await call(access, "get_event_reminders", { target: timed.target });
+      const info = got.json?.result?.structuredContent;
+      check("get_event_reminders lists copies with refs, access, time zone",
+        info?.copies?.length > 0 && info.copies.every((c) => c.calendar_id && c.event_id && c.access_role && c.time_zone) &&
+        info.suggested_copy?.event_id, JSON.stringify(got.json).slice(0, 300));
+      const ref = info?.suggested_copy ?? {};
+      const dry = await call(access, "update_event_reminders", { ...ref, preset: "appointment", dry_run: true });
+      const plan = dry.json?.result?.structuredContent;
+      check("dry run plans five pop-ups without saving", plan?.saved === false && plan.would_set?.length === 5,
+        JSON.stringify(dry.json).slice(0, 300));
+      const saved = await call(access, "update_event_reminders", { ...ref, preset: "appointment" });
+      const res = saved.json?.result?.structuredContent;
+      const morning = res?.after?.popups?.find((p) => p.label === "8:00 AM the morning of");
+      check("appointment preset saves, reads back verified and preserved",
+        res?.saved === true && res.verified === true && res.preserved === true && res.after.popups.length === 5,
+        JSON.stringify(saved.json).slice(0, 400));
+      check("the 8 a.m. reminder fires at 8:00 on the event's day",
+        morning?.fires_at === `${timed.start.slice(0, 10)}T08:00`, JSON.stringify(morning));
+      check("1 week / 3 days / 1 day / 1 hour are in the set",
+        [10080, 4320, 1440, 60].every((m) => res?.after?.popups?.some((p) => p.minutes === m)));
+      const again = await call(access, "get_event_reminders", { target: timed.target });
+      const copy = again.json?.result?.structuredContent?.copies?.find((c) => c.event_id === ref.event_id);
+      check("get_event_reminders then reports appointment_set", copy?.appointment_check?.status === "appointment_set");
+      const checked = await call(access, "check_appointment_reminders", { start_date: today, end_date: addDays(today, 27) });
+      check("check_appointment_reminders sees it up to date",
+        (checked.json?.result?.structuredContent?.up_to_date ?? []).some((c) => c.event_id === ref.event_id),
+        JSON.stringify(checked.json).slice(0, 300));
+      const custom = await call(access, "update_event_reminders", { ...ref, minutes: [30, 30, 120] });
+      check("custom minutes save (deduped)", custom.json?.result?.structuredContent?.after?.popups?.length === 2);
+      const tooFar = await call(access, "update_event_reminders", { ...ref, minutes: [50000] });
+      check("minutes past 4 weeks are refused", tooFar.json?.result?.isError === true);
+      const both = await call(access, "update_event_reminders", { ...ref, minutes: [30], preset: "appointment" });
+      check("preset and minutes together are refused", both.json?.result?.isError === true);
+    }
+    if (allDay) {
+      const got = await call(access, "get_event_reminders", { target: allDay.target });
+      const ref = got.json?.result?.structuredContent?.suggested_copy ?? {};
+      const flagged = await call(access, "update_event_reminders", { ...ref, preset: "appointment" });
+      check("all-day events are flagged, not guessed",
+        flagged.json?.result?.isError === true && /all-day/.test(flagged.json.result.content[0].text));
+    }
+    // Edge times, when the mock happens to have them: 8:00 (flagged) and 9:00 (four, not five).
+    for (const [hour, expect] of [["08", "flag"], ["09", 4]]) {
+      const e = all.find((x) => !x.all_day && x.start.slice(11, 16) === `${hour}:00`);
+      if (!e) continue;
+      const got = await call(access, "get_event_reminders", { target: e.target });
+      const ref = got.json?.result?.structuredContent?.suggested_copy ?? {};
+      const dry = await call(access, "update_event_reminders", { ...ref, preset: "appointment", dry_run: true });
+      if (expect === "flag") {
+        check("an 8:00 start is flagged, not guessed",
+          dry.json?.result?.isError === true && /8 a\.m\./.test(dry.json.result.content[0].text));
+      } else {
+        const plan = dry.json?.result?.structuredContent;
+        check("a 9:00 start gets four reminders and says why", plan?.would_set?.length === 4 && plan.notes?.length === 1);
+      }
+    }
+    const outside = await call(access, "update_event_reminders", { calendar_id: "evil@example.com", event_id: "x", minutes: [30] });
+    check("update_event_reminders refuses a calendar Hearth doesn't read", outside.json?.result?.isError === true);
 
     const member = household.members[0].key;
     const created = await call(access, "create_event", {

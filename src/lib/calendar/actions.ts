@@ -8,6 +8,7 @@ import {
   hasReadCalendars,
 } from "@/lib/calendar/config";
 import { buildRecurrence, resolveTimeZone } from "@/lib/calendar/recurrence";
+import { presetCopies, recheckAfterEdit } from "@/lib/calendar/reminders";
 import {
   getEvents,
   reconcileEvent,
@@ -252,6 +253,10 @@ export async function editEvent(input: unknown): Promise<ActionResult> {
     memberKeys: keys,
   };
 
+  // Which copies carry the reminder account's appointment reminders, so a
+  // reschedule can recalculate them afterwards (calendar/reminders.ts).
+  const before = await presetCopies(currentCopies);
+
   const { event, failures } = await reconcileEvent(spec, {
     currentCopies,
     existingGroupId,
@@ -259,7 +264,12 @@ export async function editEvent(input: unknown): Promise<ActionResult> {
     carry,
   });
   if (!event) return fail("Couldn't save the event.", 502);
-  return ok({ event, failures }, 200);
+  const after = event.copies ?? [{ calendarId: event.calendarId, eventId: event.id }];
+  const reminders = await recheckAfterEdit(before, after).catch((err) => {
+    console.error("[calendar] reminder recheck failed:", err);
+    return null;
+  });
+  return ok(reminders && reminders.length ? { event, failures, reminders } : { event, failures }, 200);
 }
 
 /**
