@@ -31,7 +31,7 @@ export function GET(req: NextRequest) {
     // against the public origin it actually requested.
     const res = new NextResponse(null, {
       status: 303,
-      headers: { location: "/calendar" },
+      headers: { location: "/" },
     });
     res.cookies.set(DEVICE_COOKIE, expected as string, {
       httpOnly: true,

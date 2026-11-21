@@ -16,6 +16,8 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
@@ -26,7 +28,11 @@ const BASE = baseArg ?? `http://localhost:${PORT}`;
 const SECRET = "test-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
 const PASSWORD = "Maple Otter-lantern 42"; // checks the case/space normalization too
 const DEVICE = "test-device-token";
+// Hearth's own files (colors, allowance) go to a throwaway directory, so the
+// suite never touches a developer's local .hearth-data.
+const DATA_DIR = baseArg ? null : mkdtempSync(join(tmpdir(), "hearth-test-"));
 const TEST_ENV = {
+  ...(DATA_DIR ? { HEARTH_DATA_DIR: DATA_DIR } : {}),
   HEARTH_PUBLIC_URL: BASE,
   HEARTH_MCP_SECRET: SECRET,
   HEARTH_MCP_PASSWORD: "maple-otter-lantern-42",
@@ -328,7 +334,7 @@ async function run() {
     check("ping", ping.json?.result && Object.keys(ping.json.result).length === 0);
     const list = await rpc(access, "tools/list");
     const tools = list.json?.result?.tools ?? [];
-    check("tools/list returns 20 tools", tools.length === 20, `got ${tools.length}`);
+    check("tools/list returns 22 tools", tools.length === 22, `got ${tools.length}`);
     check("every tool has a schema and annotations", tools.every((t) =>
       t.inputSchema?.type === "object" && typeof t.annotations?.readOnlyHint === "boolean" &&
       t.annotations.openWorldHint === false && t.description));
@@ -457,6 +463,18 @@ async function run() {
     check("add_shopping_item", ["added", "reactivated", "already_listed"].includes(added.json?.result?.structuredContent?.status));
     const listed = await call(access, "get_shopping_list");
     check("get_shopping_list sees it", (listed.json?.result?.structuredContent?.items ?? []).some((i) => /mcp test milk/i.test(i.name)));
+    // Allowance: parent-entered balances (nothing is synced from Greenlight).
+    const setBal = await call(access, "set_allowance_balance", { member: "Lincoln", amount: "$12.50", note: "mcp test" });
+    const setRow = (setBal.json?.result?.structuredContent?.balances ?? []).find((b) => b.memberKey === "lincoln");
+    check("set_allowance_balance stores cents and labels the source", setRow?.cents === 1250 && setRow.source === "manual" && setRow.note === "mcp test");
+    const getBal = await call(access, "get_allowance");
+    const getRows = getBal.json?.result?.structuredContent?.balances ?? [];
+    check("get_allowance lists every kid, unset ones as null", getRows.length === 2 && getRows.find((b) => b.memberKey === "ollie")?.cents === null);
+    const badKid = await call(access, "set_allowance_balance", { member: "mitchell", amount: "5" });
+    check("set_allowance_balance refuses someone who isn't a kid", badKid.json?.result?.isError === true);
+    const badAmt = await call(access, "set_allowance_balance", { member: "lincoln", amount: "a lot" });
+    check("set_allowance_balance refuses a non-amount", badAmt.json?.result?.isError === true);
+
     const plan = await call(access, "list_meal_plan");
     check("list_meal_plan", Array.isArray(plan.json?.result?.structuredContent?.meals));
     const sched = await call(access, "get_kids_schedule");
@@ -491,6 +509,41 @@ async function run() {
     check("wall: GET /api/tasks/rooms → 200", rooms.status === 200 && Array.isArray((await rooms.json()).rooms));
     const undoBad = await req("/api/tasks/undo", { method: "POST", headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify({ completionId: "c", memberId: "u-stranger" }) });
     check("wall: undo as a stranger → 403", undoBad.status === 403);
+    // Allowance on the wall: who can read what, and the parent PIN.
+    const jsonPost = (path, method, body) => req(path, { method, headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify(body) });
+    const own = await (await req("/api/allowance?viewer=lincoln", { headers: cookie })).json();
+    check("wall: a kid's lens reads their own balance", own.balance?.cents === 1250 && own.balance.source === "manual");
+    const sibling = await (await req("/api/allowance?viewer=ollie", { headers: cookie })).json();
+    check("wall: a sibling's lens never gets the other kid's", sibling.balance?.memberKey === "ollie" && sibling.balance.cents === null);
+    const adultView = await (await req("/api/allowance?viewer=maryann", { headers: cookie })).json();
+    check("wall: an adult's lens gets no amounts without the PIN", adultView.balance === null);
+    const status0 = await (await req("/api/allowance", { headers: cookie })).json();
+    check("wall: no PIN yet, and no amounts without a viewer", status0.pinSet === false && status0.balance === null);
+    const noPin = await jsonPost("/api/allowance/unlock", "POST", { pin: "1234" });
+    check("wall: unlock before a PIN exists → 409", noPin.status === 409);
+    const shortPin = await jsonPost("/api/allowance/pin", "POST", { next: "12" });
+    check("wall: a too-short PIN → 400", shortPin.status === 400);
+    const madePin = await jsonPost("/api/allowance/pin", "POST", { next: "4821" });
+    check("wall: first PIN is created", madePin.status === 200);
+    const rePin = await jsonPost("/api/allowance/pin", "POST", { next: "9999" });
+    check("wall: changing the PIN needs the current one", rePin.status === 403);
+    const wrong = await jsonPost("/api/allowance/unlock", "POST", { pin: "0000" });
+    check("wall: wrong PIN → 403", wrong.status === 403);
+    const wrongPut = await jsonPost("/api/allowance", "PUT", { pin: "0000", memberKey: "ollie", amount: "100" });
+    check("wall: wrong PIN can't set a balance", wrongPut.status === 403);
+    const unlocked = await jsonPost("/api/allowance/unlock", "POST", { pin: "4821" });
+    check("wall: right PIN lists both kids", unlocked.status === 200 && (await unlocked.json()).balances.length === 2);
+    const put = await jsonPost("/api/allowance", "PUT", { pin: "4821", memberKey: "ollie", amount: "7" });
+    check("wall: right PIN sets a balance", put.status === 200 && (await put.json()).balances.find((b) => b.memberKey === "ollie").cents === 700);
+    const cleared = await jsonPost("/api/allowance", "PUT", { pin: "4821", memberKey: "ollie", amount: "" });
+    check("wall: an empty amount clears it", cleared.status === 200 && (await cleared.json()).balances.find((b) => b.memberKey === "ollie").cents === null);
+    const noCookie = await req("/api/allowance?viewer=lincoln");
+    check("wall: allowance without the device cookie → 401", noCookie.status === 401);
+    // Four more wrong PINs (two above) trip the limit; then even the right one waits.
+    for (let i = 0; i < 4; i++) await jsonPost("/api/allowance/unlock", "POST", { pin: "0000" });
+    const lockedOut = await jsonPost("/api/allowance/unlock", "POST", { pin: "4821" });
+    check("wall: too many wrong PINs → 429", lockedOut.status === 429);
+
     const sched = await req("/api/schedule?week=2026-11-16", { headers: cookie });
     check("wall: GET /api/schedule → 200", sched.status === 200 && (await sched.json()).weekStart === "2026-11-16");
     const card = await req("/api/meals/nope", { headers: cookie });
@@ -552,6 +605,7 @@ try {
   console.error(err);
 } finally {
   stopServer();
+  if (DATA_DIR) rmSync(DATA_DIR, { recursive: true, force: true });
 }
 
 console.log(`\n${passed} passed, ${failures.length} failed`);

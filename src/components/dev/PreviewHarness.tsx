@@ -10,9 +10,8 @@ import { NAV } from "@/lib/config";
 // distance without the actual hardware.
 //
 // Why an iframe: an iframe establishes its own viewport, so everything inside —
-// media queries AND, for Hearth specifically, <Stage>'s `window.innerWidth/
-// innerHeight` measurement — responds to the iframe's dimensions, NOT the laptop
-// window. Set the iframe to a device resolution and the app renders exactly as
+// media queries, and with them Hearth's viewport-scaled root font size (see
+// globals.css) — responds to the iframe's dimensions, NOT the laptop window. Set the iframe to a device resolution and the app renders exactly as
 // it would on a panel of that size, regardless of how large the harness window
 // is or how small we scale it down to view it.
 //
@@ -25,14 +24,14 @@ import { NAV } from "@/lib/config";
 // The default (1280×720 @ 0.35) matches the ~13"-wide calendar panel viewed from
 // ~6 ft: on a typical laptop that lands around 4.4" wide — the same angular size
 // you'll get on the wall. Flip to 1920×1080 for a pixel-crisp Stage-native view
-// (Stage renders at scale 1 there). Use the angular-size helper to re-derive the
+// (a 20px rem there). Use the angular-size helper to re-derive the
 // scale for a different panel, distance, or screen density.
 
 type DevicePreset = { label: string; w: number; h: number };
 
 const DEVICE_PRESETS: DevicePreset[] = [
   { label: "1280 × 720 — calendar panel (720p)", w: 1280, h: 720 },
-  { label: "1920 × 1080 — wall, Stage-native (crisp)", w: 1920, h: 1080 },
+  { label: "1920 × 1080 — wall (crisp)", w: 1920, h: 1080 },
   { label: "1366 × 768 — laptop panel", w: 1366, h: 768 },
   { label: "1024 × 600 — small HDMI panel", w: 1024, h: 600 },
 ];
@@ -40,10 +39,12 @@ const DEVICE_PRESETS: DevicePreset[] = [
 const SCALE_PRESETS = [0.25, 0.35, 0.5, 1] as const;
 
 // Routes worth previewing. NAV is the app's own destination list (pure data);
-// `/` is added so the redirect-to-calendar path can be exercised too.
-const ROUTE_OPTIONS = [{ label: "Home (/) → redirects", href: "/" }].concat(
-  NAV.map((n) => ({ label: `${n.label} (${n.href})`, href: n.href })),
-);
+// the old addresses are added so their redirects can be exercised too.
+const ROUTE_OPTIONS = NAV.map((n) => ({ label: `${n.label} (${n.href})`, href: n.href })).concat([
+  { label: "Settings (/settings)", href: "/settings" },
+  { label: "Old /clean → Chores", href: "/clean" },
+  { label: "Old /shopping → Kitchen", href: "/shopping" },
+]);
 
 // Dark chrome so the harness never reads as the app itself, and so the warm
 // cream canvas pops against it the way a lit panel would on a wall.
@@ -62,8 +63,8 @@ export function PreviewHarness() {
   const [deviceW, setDeviceW] = useState(1280);
   const [deviceH, setDeviceH] = useState(720);
   const [scale, setScale] = useState(0.35);
-  const [route, setRoute] = useState("/calendar");
-  const [customRoute, setCustomRoute] = useState("/calendar");
+  const [route, setRoute] = useState("/");
+  const [customRoute, setCustomRoute] = useState("/");
   const [reloadNonce, setReloadNonce] = useState(0);
 
   // Angular-size helper inputs. Defaults describe the real calendar panel: ~13"
@@ -159,7 +160,7 @@ export function PreviewHarness() {
           </div>
           {!activePreset && (
             <p className="mt-1 text-[11px]" style={{ color: C.inkFaint }}>
-              Custom size — Stage inside will fit-scale the 1920×1080 canvas.
+              Custom size — the layout inside scales its type to the frame.
             </p>
           )}
         </Section>

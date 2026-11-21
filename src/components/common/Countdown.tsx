@@ -1,44 +1,53 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from "react";
-import type { CalendarEvent } from "@/lib/calendar/types";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
+import type { CalendarEvent, CalendarPayload } from "@/lib/calendar/types";
+import { addDays, toDateParam, zonedNow } from "@/lib/calendar/dates";
+import { soonestCountdown } from "@/lib/calendar/event";
+import { useUpstream } from "@/hooks/useUpstream";
+import { useMounted } from "@/lib/prefs";
+import { useTimeZone } from "./TimeZone";
 
-// The one countdown event the app chrome shows — the calendar's soonest
-// upcoming countdown (D10), lifted out of the view so the main header can
-// render it live. The calendar owns the data (it is the only view that fetches
-// events): it publishes its pick here while mounted and clears it on unmount;
-// the header only reads. Two contexts so the calendar, which only writes, never
-// re-renders when the value changes.
+// The household's next countdown (spec D10): the soonest upcoming event flagged
+// "countdown", shown live in the header on every screen and on Today.
+//
+// It used to be published by the calendar view, so it vanished the moment you
+// opened any other page. The provider now looks for it itself: one calendar
+// read covering the next three months (the window the server already keeps in
+// memory), refreshed every five minutes.
 
-type Setter = Dispatch<SetStateAction<CalendarEvent | null>>;
+const LOOK_AHEAD_DAYS = 92;
+const REFRESH_MS = 5 * 60_000;
 
 const CountdownEventContext = createContext<CalendarEvent | null>(null);
-const CountdownSetterContext = createContext<Setter>(() => {});
 
 export function CountdownProvider({ children }: { children: ReactNode }) {
-  const [event, setEvent] = useState<CalendarEvent | null>(null);
-  return (
-    <CountdownSetterContext.Provider value={setEvent}>
-      <CountdownEventContext.Provider value={event}>
-        {children}
-      </CountdownEventContext.Provider>
-    </CountdownSetterContext.Provider>
+  const timeZone = useTimeZone();
+  const mounted = useMounted();
+
+  const fetcher = useCallback(async (): Promise<CalendarPayload> => {
+    const today = zonedNow(timeZone);
+    const start = toDateParam(today);
+    const end = toDateParam(addDays(today, LOOK_AHEAD_DAYS));
+    const res = await fetch(`/api/calendar?start=${start}&end=${end}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`calendar ${res.status}`);
+    return res.json();
+  }, [timeZone]);
+
+  const { data } = useUpstream<CalendarPayload>(fetcher, {
+    intervalMs: REFRESH_MS,
+    enabled: mounted,
+  });
+
+  const event = useMemo(
+    () => (data ? soonestCountdown(data.events, zonedNow(timeZone)) : null),
+    [data, timeZone],
   );
+
+  return <CountdownEventContext.Provider value={event}>{children}</CountdownEventContext.Provider>;
 }
 
-/** The event currently counting down in the header, or null. */
+/** The event currently counting down, or null. */
 export function useCountdownEvent(): CalendarEvent | null {
   return useContext(CountdownEventContext);
-}
-
-/** The calendar's write handle. Stable across renders (a React state setter). */
-export function useSetCountdownEvent(): Setter {
-  return useContext(CountdownSetterContext);
 }

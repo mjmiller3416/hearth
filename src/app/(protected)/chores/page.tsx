@@ -1,10 +1,15 @@
 import { ChoresView } from "@/components/tasks/ChoresView";
 import { requireAuthorizedPage } from "@/lib/auth";
 
-// The kids' chores checklist (Phase 2, spec §4.3, D5). The gate is the FIRST
-// statement — see src/lib/auth.ts (Phase 0.1). All view logic and polling live in
-// the client component.
-export default async function ChoresPage() {
+// Chores: the kids' checklists and Maryann's cleaning session (spec §4.2–4.3).
+// `?view=clean` opens on the session (the old /clean address redirects here).
+// The auth guard MUST stay the first statement (Phase 0.1).
+export default async function ChoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireAuthorizedPage();
-  return <ChoresView />;
+  const { view } = await searchParams;
+  return <ChoresView initialMode={view === "clean" ? "clean" : view === "kids" ? "kids" : null} />;
 }

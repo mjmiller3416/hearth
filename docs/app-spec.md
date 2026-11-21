@@ -1,11 +1,27 @@
-# Hearth — Household Wall Display
+# Hearth — Family Hub
 
-**Status:** Living spec — reconciled with the codebase (per-member calendar rework + Settings, August 2026)
-**Date:** August 2026
+**Status:** Living spec — reconciled with the codebase (Family Hub redesign, November 2026)
+**Date:** August 2026; amended 2026-11-20
 **Working name:** Hearth (placeholder — rename freely, it appears nowhere user-facing except the PWA manifest)
 **Names:** the meal planner is **Enchanted Spoon** (earlier drafts called it "MealGenie" — same app).
 
 **Build status at a glance.** Phase 0 (shell, device auth, deploy) and Phase 1 (Calendar) are built. Phase 1.5 grew the calendar into a full read-write client — **create, edit, and delete** — on a **per-member-calendar** model, and added the **Settings** surface with customizable member colors. Phase 2 (Clean & Chores) is built and verified **against a mock**; the live Tada! integration is blocked on device-scoped endpoints Tada! does not yet expose (§5.2–5.3, `docs/tada-integration-requirements.md`). Phase 3 (Lists) is an unbuilt placeholder. Phase 4's Meals is live, and Shopping is live for reading the list and adding items (check-off, edit, remove and the Tada! supplies shelf are not built yet). Where this document once said "create only" and "no database," the sections below record what the code actually does and why the boundary still holds.
+
+> **Amended 2026-11-20 — the Family Hub redesign.** The interface was rebuilt
+> around what the family is doing instead of which app owns the data, and made
+> to work on phones as well as the wall. What changed, and where it is recorded:
+>
+> - **Navigation and views:** §4 (five destinations: Today, Calendar, School,
+>   Chores, Kitchen) and §4.0 (Today and the lens).
+> - **Display constraints:** §6.1 (two layouts instead of one fixed canvas),
+>   §6.3 (the lens replaces the calendar's member chips), §6.4 (shared and
+>   personal screens; the idle return that replaced the timed view schedule).
+> - **Design direction:** §7 (the token system and the evening theme).
+> - **Storage:** D1 and the new D13 (parent-entered allowance balances).
+>
+> The ownership boundary did not move: Hearth still computes and decides
+> nothing. D4 (Maryann's surface shows one task, never the backlog) holds
+> everywhere the cleaning task now appears, including Today.
 
 ---
 
@@ -39,8 +55,8 @@ Hearth replaces the parts that are wrong and, where the household wants it, brin
 
 These are settled. A future build session should not relitigate them without an explicit spec amendment. Several carry an **amendment history** — the record of how a decision moved as the wall went from display to client, and (in D2/D3) as the calendar's storage model was reworked. Read the amendments; they are the reasoning, not footnotes.
 
-**D1 — Hearth has no database. Its only persisted state is one shared preference file.**
-*(Amended in the client rework — was "no database … configuration lives in environment variables," full stop.)*
+**D1 — Hearth has no database. Its only persisted state is two small files.**
+*(Amended in the client rework — was "no database … configuration lives in environment variables," full stop. Amended 2026-11-20: a second file, the allowance balances, D13.)*
 No schema, no migrations, no ORM, no household data at rest. Configuration lives in environment variables. The **one** exception is a single small JSON file holding the customizable family colors (D12): a shared *display preference*, not household data and not logic — it decides nothing and nobody's calendar, task, or list depends on it. It lives at `HEARTH_DATA_DIR` (a Railway volume, so it survives redeploys and every device reads the same colors) and degrades to in-process memory when no volume is set. If a phase appears to need persistence for anything *else*, stop and reconsider whether the state belongs in Tada! or Enchanted Spoon. A client that can *trigger* an upstream write is not a store — see D11.
 
 **D2 — Google Calendar is the system of record. Hearth may create, edit, and delete events.**
@@ -127,7 +143,19 @@ The write actions are a deliberately short, closed list:
 
 Any write beyond this list is a spec amendment, not a small addition. This note is the record of every time it has grown.
 
-**D12 — Family colors are customizable, and that preference is Hearth's one piece of persisted state.** *(Added in Phase 2.)*
+**D13 — Allowance balances are parent-entered and kept by Hearth.** *(Added 2026-11-20.)*
+The kids' money is on Greenlight, and Greenlight gives a household no supported way to read balances: no consumer API, no aggregator listing, and terms that forbid scraping (README → Allowance and Greenlight records what was checked). So that the kids can still see what they have, a parent types the amount in, and Hearth stores it.
+
+This is the first *household data* Hearth holds, and D1's test ("stop and reconsider whether the state belongs in Tada! or Enchanted Spoon") was applied: it belongs in neither, because no upstream has it. The exception is kept as narrow as the color file's:
+
+- **One amount per kid**, with when it was entered and an optional short note, in `allowance.json` beside the color file. No transactions, no history, no allowance schedule, no arithmetic. Hearth still computes nothing.
+- **Never presented as synced.** Every balance carries `source: "manual"` and the screen says "A parent entered this <date> · Not synced with Greenlight" every time. A synced source, if one ever exists, is a new `source` value with its own label.
+- **Who sees what is enforced by the server, not the page:** a kid's lens gets that kid's balance only; no lens, an adult's lens and a sibling's lens get no amounts; all balances together, and any change, need the parent PIN (hashed in the same file, rate-limited). The shared wall keeps the amount covered until tapped.
+- **No private Greenlight endpoints, scraping or Greenlight credentials, ever.**
+
+Widening this file (a ledger, chores-for-money, automatic allowance) is a spec amendment, and most of those ideas belong in Tada!, which owns reward state.
+
+**D12 — Family colors are customizable, and that preference is Hearth's one piece of persisted state.** *(Added in Phase 2. As of D13 it is one of two.)*
 Member color is load-bearing (D3, §7), so the household can tune it. The Settings view (§4.7) lets anyone recolor each member — and the shared "Family" color — from a fixed set of swatches. The choice is written to the single shared file in D1 (`HEARTH_DATA_DIR`) and injected as CSS custom-property overrides at first paint on every device, so the wall and a phone/laptop always agree and there is no recolor flash. This is the deliberate, bounded exception to "no persistence": it holds a preference, not household data, and nothing computes on it. Swatch set, the write path, and the fallback-when-no-volume behavior are all fixed; widening this file to hold anything else is a spec amendment.
 
 ---
@@ -175,6 +203,38 @@ One Railway service in the existing project. Environment variables carry all con
 ---
 
 ## 4. Views
+
+> **Amended 2026-11-20.** The six per-app destinations below were regrouped
+> into five, by activity:
+>
+> | Destination | Holds | Was |
+> |---|---|---|
+> | **Today** (`/`) | everything for today, with the everyday actions in place (§4.0) | new |
+> | **Calendar** | §4.1 | Calendar |
+> | **School** | the kids' Tandem week | Schedule |
+> | **Chores** | §4.3 (Kids) and §4.2 (Cleaning) as two modes | Clean, Chores |
+> | **Kitchen** | §4.5 beside §4.6 | Meals, Shopping |
+>
+> The Lists placeholder (§4.4) left the navigation until it is built. The
+> sections below still describe each view's rules; read "sidebar" as the rail
+> on a wide screen and the tab bar on a phone.
+
+### 4.0 Today and the lens *(added 2026-11-20)*
+
+**Today** is where every screen starts and where a shared screen rests. It
+answers "what matters today" from every source at once: today's events and
+what's coming up, the kids' school day (now and next), the kids' chores with
+their check targets, the one next cleaning task with its Done target (D4: one
+task, never a count), tonight's dinner with its recipe one tap away, and the
+shopping list with its add field. Each card is its own source with its own
+loading, not-connected and stale states (§6.2).
+
+**The lens** is the app's one "who's looking" choice (§6.3). Nobody selected is
+the family's day. A kid's lens leads with their school day, their chores and
+their allowance (D13). An adult's lens narrows the calendar to their events and
+the family's.
+
+The original text of this section follows.
 
 The sidebar is the whole navigation model. It carries **six content destinations** — the Skylight's familiar set, split so each person's surface stands on its own (Maryann's **Clean**, the kids' **Chores**) and with **Shopping** (formerly the "Recipes" placeholder) as the list the household actually uses (D6) — plus a **Settings** affordance anchored at the bottom of the rail (§4.7).
 
@@ -316,6 +376,14 @@ A wall display is not a small phone. The constraints are genuinely different and
 
 ### 6.1 Physical
 
+> **Amended 2026-11-20.** "Landscape, fixed" below is no longer the whole
+> story: phones are first-class. The app has two layouts, wide (900px and up)
+> and phone. The wide layout is still drawn to the wall's proportions: the root
+> font size follows the viewport (20px at 1920×1080), so the wall reads the same
+> at any resolution, but it now reflows instead of scaling a fixed canvas. The
+> wall-specific rules (touch only, in-app keyboard, always on, ambient first)
+> apply to a *shared* screen (§6.4); a phone uses its own keyboard and pickers.
+
 - **Read distance:** six to ten feet. Body text that works at arm's length is illegible here. Set the minimum type size by walking across the room and looking, not by picking a number. The scale lives in `globals.css` under `@theme` — tune those tokens against the hardware, don't scatter sizes through components.
 - **Touch only.** No hover states, no right-click, no physical keyboard; text entry uses the in-app on-screen keyboard. Every target sized for a hand reaching up to a wall, not a thumb on a phone.
 - **Landscape, fixed.** Built for 1920×1080 and drawn on that fixed canvas, scaled to fit whatever viewport it runs in (never reflowed). Confirm the target device's actual resolution in Phase 0.
@@ -335,15 +403,39 @@ If Hearth cannot reach an upstream for an hour, the wall shows the last good dat
 
 ### 6.3 No login, but a "who's acting" selector
 
+> **Amended 2026-11-20.** The selector is now the **lens**, in the header on
+> every screen rather than on the calendar alone, and it narrows what is shown
+> as well as attributing writes. It is still attribution, not authentication.
+> The one thing it does not unlock by itself is anyone else's allowance (D13).
+
 Nobody logs into a wall. Authentication is a long-lived device token in the environment, set once by opening `/setup?token=…`, which stores an httpOnly cookie — no session, no timeout, no PIN prompt. What the wall does need, now that it writes as different people, is a lightweight **member selector**: the person chips already used to filter the calendar double as "who is acting" for a completion. Maryann taps her chip and runs her session; a kid taps theirs to check off a chore.
 
 This is attribution, not authentication. The household trusts whoever is standing at the wall; the device token carries the real authority (§5.3), and the chip only says which member to attribute the write to. Shopping-list writes need no selector — the list is shared and unowned. Neither do calendar writes or color changes.
+
+### 6.4 Shared screens and personal screens *(added 2026-11-20)*
+
+Hearth tells a shared screen (large, touch-only: the wall) from a personal one
+(a phone or laptop), and Settings can override the guess.
+
+- A **shared** screen types with the in-app keyboard, keeps allowance amounts
+  covered until tapped, uses the evening theme at night, and after three idle
+  minutes returns to Today with nobody selected. That return replaced the timed
+  view schedule (the wall switching to Schedule, Chores, Meals and Calendar at
+  set times): Today shows what each of those times used to switch to.
+- A **personal** screen remembers its lens (a kid's phone opens on that kid's
+  day), follows its own light/dark setting, and stays where it was left.
 
 ---
 
 ## 7. Design direction
 
 Suggested, not locked — revise to taste.
+
+*(Amended 2026-11-20: the direction below held, and was made into a system.
+Every color is a token with an evening-theme value; one overlay (a sheet), one
+card, one set of loading / not-connected / stale states; a display face
+(Fraunces) and a body face (Figtree) that now actually load. Primary actions
+are ink, so saturation still belongs to people alone.)*
 
 **Concept: a household ledger, not a dashboard.** The failure mode for this kind of screen is looking like a startup analytics page: cards, pills, progress rings, accent gradients. This is a living room. It should read like something that belongs on a wall next to family photos.
 

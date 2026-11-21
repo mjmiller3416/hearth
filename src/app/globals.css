@@ -1,112 +1,140 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Hearth theme — a household ledger, not a dashboard (spec §7).
+   Hearth theme: warm paper and ink, with the family's colors as the only
+   saturated things on screen (spec §7). Every color the app uses is a token
+   here, so the evening (dark) theme is a second set of values and nothing in a
+   component names a hex.
 
-   A warm neutral ground. The four member colors are the ONLY saturated
-   elements on screen; everything else stays quiet so color carries meaning.
-   Member color is defined once here and mirrored in src/lib/config.ts.
+   Two layouts share these tokens:
+     phone  (< 900px wide)  one column, bottom tab bar, normal page scroll
+     wide   (>= 900px)      rail + header, panels that scroll inside the frame
+   The `wide:` variant below switches between them.
    ============================================================================ */
 @theme {
-  /* ── Ground & surfaces (warm neutral; light, per always-on constraint) ── */
-  --color-ground: #f4efe4; /* main background */
-  --color-ground-2: #efe8d9; /* subtle inset */
-  --color-surface: #fbf8f1; /* panels, active rail item */
+  --breakpoint-wide: 56.25rem; /* 900px; media queries ignore the root font size */
 
-  /* ── Ink (warm near-black text) ── */
-  --color-ink: #2b2620; /* primary text */
-  --color-ink-soft: #6f675a; /* secondary text */
-  --color-ink-faint: #9a917f; /* timestamps, footnotes */
+  /* ── Ground & surfaces ── */
+  --color-ground: #f5f0e6; /* page background */
+  --color-ground-2: #ece5d6; /* inset wells, pressed states */
+  --color-surface: #fffdf8; /* cards, sheets */
+  --color-surface-2: #f8f4ea; /* rows and fields inside a card */
 
-  /* ── Hairlines (rules instead of card borders/shadows) ── */
-  --color-hairline: #e4ddcc;
-  --color-hairline-strong: #d6cdb8;
+  /* ── Ink ── */
+  --color-ink: #27221c; /* primary text, primary buttons */
+  --color-ink-soft: #645c50; /* secondary text */
+  --color-ink-faint: #958c7b; /* timestamps, placeholders */
+  --color-on-ink: #fffdf8; /* text on an ink fill */
 
-  /* ── Accent palette (ported from Tada — "a splash of color") ───────────────
-     Tada's anchor triad on Hearth's warm ground: purple = primary/highlight,
-     teal = ingredients/success, coral = today/warmth. Each has a soft tint for
-     chips and a strong variant for text/hover. Consumed ONLY through Tailwind
-     utilities (bg-accent-soft, text-teal-strong, ring-accent, …) — which is why
-     they belong in @theme (utility-referenced tokens survive tree-shaking; the
-     dynamic tone tints below don't, so those live in :root). Used in Meals only
-     for now; the rest of the app stays on the quiet ground palette until a wider
-     rollout. See the Tada design system at ../tada-cleaning-app. ── */
-  --color-accent: #8354c9; /* purple — primary action / highlight */
-  --color-accent-strong: #6c3fac;
-  --color-accent-soft: #efe6fb;
-  --color-teal: #17a893; /* ingredients / success */
-  --color-teal-strong: #128a76;
-  --color-teal-soft: #d9f4ee;
-  --color-coral: #e15b54; /* today / warmth */
-  --color-coral-strong: #c14840;
-  --color-coral-soft: #fbe4e1;
+  /* ── Rules ── */
+  --color-hairline: #e3dccb;
+  --color-hairline-strong: #d0c6af;
 
-  /* Member colors live in the plain :root block below, NOT here — see the note
-     there. Everything in @theme is consumed by a Tailwind utility (bg-*, text-*,
-     border-*); the member colors are not, so they must not sit in @theme. */
+  /* ── Status (notices only; never decoration) ── */
+  --color-good: #1c7f6b;
+  --color-good-soft: #dcf1ea;
+  --color-bad: #b9402f;
+  --color-bad-soft: #f9e3dd;
+  --color-ember: #c2542d; /* the brand mark and the "now" marker */
+
+  /* ── Scrim behind sheets ── */
+  --color-scrim: rgba(39, 32, 22, 0.42);
 
   /* ── Fonts ── */
-  --font-display: var(--font-fraunces); /* characterful face: dates, headings */
-  --font-body: var(--font-inter); /* clean face: everything else */
+  --font-display: var(--font-fraunces); /* dates, headings, big numerals */
+  --font-body: var(--font-figtree); /* everything else */
 
-  /* ── Type scale ─────────────────────────────────────────────────────────
-     Tuned for a 1920×1080 landscape panel viewed from six to ten feet. Body
-     minimum is deliberately large. VERIFY PHYSICALLY on the real hardware
-     (acceptance #6) and adjust these tokens only — nowhere else. ── */
-  --text-stamp: 1rem; /* 16px — timestamps */
+  /* ── Type scale. The values are for the phone; the wide layout swaps them
+     below. Sizes are rem, and the root font size itself scales with a wide
+     viewport, so a wall panel gets wall-sized type without a second scale. ── */
+  --text-stamp: 0.75rem;
   --text-stamp--line-height: 1.3;
-  --text-label: 1.25rem; /* 20px — sidebar labels, chips */
-  --text-label--line-height: 1.2;
-  --text-body: 1.75rem; /* 28px — body minimum */
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25;
+  --text-body: 1rem;
   --text-body--line-height: 1.4;
-  --text-title: 2.25rem; /* 36px */
+  --text-title: 1.25rem;
   --text-title--line-height: 1.2;
-  --text-display: 3rem; /* 48px — header day/time */
-  --text-display--line-height: 1.1;
-  --text-heading: 3.75rem; /* 60px — view titles */
+  --text-display: 1.6rem;
+  --text-display--line-height: 1.12;
+  --text-heading: 1.9rem;
   --text-heading--line-height: 1.05;
-  --text-date: 4.5rem; /* 72px — the most confident thing on the calendar */
+  --text-date: 2.6rem;
   --text-date--line-height: 1;
+
+  --shadow-card: 0 1px 2px rgba(70, 52, 24, 0.05), 0 10px 28px -18px rgba(70, 52, 24, 0.28);
+  --shadow-pop: 0 2px 6px rgba(50, 36, 16, 0.08), 0 28px 70px -24px rgba(50, 36, 16, 0.5);
+
+  --animate-rise: hearth-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade: hearth-fade-in 300ms ease-out;
+}
+
+/* The wide layout is drawn on a 96 x 54 rem frame: the root font size follows
+   the tighter of the viewport's width and height, so a 1920x1080 wall gets a
+   20px rem and everything (type, spacing, targets) keeps its proportions on a
+   1280x720 panel or a 2560x1440 monitor. Unlike the old fixed canvas it still
+   reflows: a wider panel gets wider columns, not black bars. */
+@media (min-width: 900px) {
+  html {
+    font-size: clamp(13px, min(1.0417vw, 1.8519vh), 26px);
+  }
+  :root {
+    --text-stamp: 0.8rem;
+    --text-label: 1rem;
+    --text-body: 1.3rem;
+    --text-title: 1.7rem;
+    --text-display: 2.3rem;
+    --text-heading: 2.9rem;
+    --text-date: 3.6rem;
+  }
 }
 
 /* ============================================================================
-   Member colors — the only saturated elements on screen (spec §7). These are
-   consumed exclusively through runtime `var(--color-<slug>)` in inline styles
-   (event chips, member chips, avatars), never through a Tailwind utility. That
-   matters: Tailwind v4 tree-shakes @theme variables it can't see referenced by a
-   generated utility, so a color defined in @theme but only used via a dynamic
-   var() string is DROPPED from :root and the chip renders colorless. Declaring
-   them here in a plain :root block keeps them always emitted. Mitchell is locked
-   to green by spec D3; retune the others' hex here (the single source).
+   Evening theme. Set by <html data-theme="dark"> (ThemeKeeper): the phone's own
+   dark mode, a wall after dusk, or the choice in Settings. A wall that glows
+   cream at 10pm in a dark living room is the one thing every owner of a wall
+   calendar complains about.
+   ============================================================================ */
+:root[data-theme="dark"] {
+  --color-ground: #1b1815;
+  --color-ground-2: #14110f;
+  --color-surface: #27231f;
+  --color-surface-2: #302b26;
+  --color-ink: #f3ecdf;
+  --color-ink-soft: #bdb3a2;
+  --color-ink-faint: #8c8374;
+  --color-on-ink: #1b1815;
+  --color-hairline: #3a342d;
+  --color-hairline-strong: #51493f;
+  --color-good: #6fd0b8;
+  --color-good-soft: #1f3a34;
+  --color-bad: #f0907d;
+  --color-bad-soft: #45251f;
+  --color-ember: #e58058;
+  --color-scrim: rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
+}
+
+/* ============================================================================
+   Member colors: the only saturated elements on screen. Used through runtime
+   `var(--color-<slug>)` in inline styles, never through a Tailwind utility, so
+   they live in a plain :root block (Tailwind v4 drops @theme variables it can't
+   see a utility for). They mirror each person's own Google Calendar color and
+   can be changed in Settings (spec D12), which overrides these at :root.
    ============================================================================ */
 :root {
-  /* Member colors mirror each person's OWN Google Calendar color, so an event
-     reads the same on the wall as on their phone (sampled from the household's
-     calendar list). This overrides the earlier spec-D3 "Mitchell = green": his
-     work calendar is teal, so the wall follows the source of truth. */
-  --color-mitchell: #30b0b0; /* teal — info@endurance-decking.com */
-  --color-maryann: #d81b60; /* raspberry — mmaryannr@gmail.com */
-  --color-lincoln: #7cb342; /* avocado green — ljmiller2389@gmail.com */
-  --color-ollie: #039be5; /* blue — obashmiller@gmail.com */
-
-  /* Chip fills for events that name no single person (Phase 1.5). Neutral =
-     untagged with no owning-calendar default (rare fallback); everyone = the
-     whole family (a 4+ tagged event, or an event on the Miller Family calendar),
-     matching that calendar's orange rather than four slivers. */
-  --color-neutral: #c9bfa8; /* light warm gray — takes dark ink */
-  --color-everyone: #f09300; /* Miller Family orange — takes dark ink */
+  --color-mitchell: #30b0b0;
+  --color-maryann: #d81b60;
+  --color-lincoln: #7cb342;
+  --color-ollie: #039be5;
+  --color-neutral: #c9bfa8; /* untagged, no owning calendar */
+  --color-everyone: #f09300; /* the family calendar */
 }
 
-/* ============================================================================
-   Food tones (Meals, Phase 4+). Soft tints from Tada's chip palette that give
-   each meal a distinct, appetizing color on its card and open card. Applied
-   DYNAMICALLY via `var(--tone-<name>-bg)` in inline styles (image placeholders,
-   gradients, accent dots), so — like the member colors — they must live in a
-   plain :root and NOT in @theme, which Tailwind v4 tree-shakes for tokens it
-   can't see referenced by a generated utility. Each tone is a (bg, ink) pair;
-   the card derives its gradient from the two with color-mix(). Keyed on mealId,
-   so a meal keeps its color from the grid to its open card (see mealVisuals.tsx).
-   ============================================================================ */
+/* Food tones: a (bg, ink) pair per meal, picked from the meal id, for the
+   picture placeholder until Enchanted Spoon sends photos (mealVisuals.tsx). */
 :root {
   --tone-peach-bg: #fce8d6;
   --tone-peach-ink: #9a5b16;
@@ -125,48 +153,118 @@
   --tone-honey-bg: #fdecc9;
   --tone-honey-ink: #97651a;
 }
+:root[data-theme="dark"] {
+  --tone-peach-bg: #4a3523;
+  --tone-peach-ink: #f3c08a;
+  --tone-berry-bg: #4a2836;
+  --tone-berry-ink: #f2a3c2;
+  --tone-lavender-bg: #382e4d;
+  --tone-lavender-ink: #c9b5f2;
+  --tone-periwinkle-bg: #2b3350;
+  --tone-periwinkle-ink: #aab8f5;
+  --tone-mint-bg: #213d30;
+  --tone-mint-ink: #8fdcb5;
+  --tone-coral-bg: #4b2a26;
+  --tone-coral-ink: #f5a79f;
+  --tone-teal-bg: #1d3d39;
+  --tone-teal-ink: #7fdccb;
+  --tone-honey-bg: #473818;
+  --tone-honey-ink: #f0cd7c;
+}
 
-/* ============================================================================
-   Base + kiosk guards (Phase 0 #14). Text selection, long-press callouts,
-   pinch/double-tap zoom, and pull-to-refresh are all accidental-touch hazards
-   on a wall. Disable them globally. The JS counterparts live in KioskGuards.
-   ============================================================================ */
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* No pull-to-refresh / overscroll glow. */
     overscroll-behavior: none;
+    background: var(--color-ground);
   }
 
   body {
-    font-family: var(--font-body);
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
     background: var(--color-ground);
     color: var(--color-ink);
     overscroll-behavior: none;
-    /* No text selection. */
+    /* Touch-first: no selection, callout or double-tap zoom on a wall or a
+       phone held in one hand. Inputs opt back in below. */
     -webkit-user-select: none;
     user-select: none;
-    /* No long-press callout on iOS. */
     -webkit-touch-callout: none;
-    /* Disables double-tap-to-zoom; taps still register. */
     touch-action: manipulation;
   }
 
+  input,
+  textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   * {
-    /* No tap flash on touch. */
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* One visible focus treatment for keyboards; touch never shows it. */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+
+  /* Quiet scrollbars inside panels. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-hairline-strong) transparent;
   }
 }
 
-/* Content updates cross-fade rather than slide or pop (spec §7 — motion almost
-   none; anything that moves in peripheral vision all day becomes an irritant).
-   The Clean session's task swaps use this via an animation with a changing key. */
+/* A horizontally scrolling strip (lens chips, room pills) without a bar. */
+@utility scroll-strip {
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Room for the phone's home indicator under the tab bar and sheets. */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Content updates cross-fade rather than slide or pop (spec §7): anything that
+   moves in peripheral vision all day becomes an irritant. Sheets rise once. */
 @keyframes hearth-fade-in {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
+  }
+}
+@keyframes hearth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes hearth-shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

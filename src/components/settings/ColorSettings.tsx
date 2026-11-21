@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check } from "lucide-react";
+import { Sheet, SheetBody, SheetHeader } from "@/components/ui/Sheet";
 import { SWATCHES } from "@/lib/settings/swatches";
 
-// The color picker on the Settings page (Phase 2 #3, reworked #5). Instead of a
-// wall of every swatch for every person, it now lists the family "tags" — one row
-// per person plus Family, each showing its current color. Tapping a tag opens a
-// small popup with the palette laid out in a grid; picking a color recolors that
-// person everywhere and closes the popup.
+// The family colors (spec D12): one row per person plus Family, each showing
+// its current color. Tapping a row opens the palette; picking a color recolors
+// that person everywhere, on every device.
 //
-// The choice is saved to the shared settings store and applied app-wide by
-// refreshing the server tree, so the wall and every other device pick it up. The
-// optimistic selection only rolls back if the save truly fails (the store now
-// self-heals to a writable dir, so the old "reverts immediately" bug is gone).
+// The choice is saved to Hearth's shared settings file and applied by
+// refreshing the server tree. The optimistic selection rolls back only if the
+// save truly fails.
 
 export interface ColorEntry {
   slug: string;
@@ -32,20 +30,7 @@ export function ColorSettings({ entries }: { entries: ColorEntry[] }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
-
-  const editing = editingSlug
-    ? entries.find((e) => e.slug === editingSlug) ?? null
-    : null;
-
-  // Escape closes the popup.
-  useEffect(() => {
-    if (!editingSlug) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setEditingSlug(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [editingSlug]);
+  const editing = editingSlug ? entries.find((e) => e.slug === editingSlug) ?? null : null;
 
   async function choose(slug: string, swatchId: string) {
     setEditingSlug(null);
@@ -70,72 +55,38 @@ export function ColorSettings({ entries }: { entries: ColorEntry[] }) {
 
   return (
     <>
-      <div className="flex flex-col gap-3">
-        {entries.map((entry) => {
-          const active = selection[entry.slug];
-          return (
+      <ul className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 12rem), 1fr))" }}>
+        {entries.map((entry) => (
+          <li key={entry.slug}>
             <button
-              key={entry.slug}
               type="button"
               onClick={() => setEditingSlug(entry.slug)}
-              aria-label={`Change ${entry.label} color`}
+              aria-label={`Change ${entry.label}'s color`}
               aria-haspopup="dialog"
-              className="flex items-center gap-4 rounded-2xl bg-surface px-5 py-4 text-left transition-colors hover:bg-ground-2"
+              className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-surface-2 px-4 text-left ring-1 ring-inset ring-hairline active:bg-ground-2"
             >
               <span
-                className="size-10 shrink-0 rounded-full ring-1 ring-black/5"
-                style={{ backgroundColor: hexFor(active) }}
+                className="size-8 shrink-0 rounded-full"
+                style={{ backgroundColor: hexFor(selection[entry.slug]) }}
                 aria-hidden
               />
-              <span className="flex-1 text-title text-ink">{entry.label}</span>
-              <span className="text-label text-ink-faint">Change</span>
+              <span className="flex-1 text-body text-ink">{entry.label}</span>
             </button>
-          );
-        })}
-      </div>
+          </li>
+        ))}
+      </ul>
 
       {error && (
-        <p role="alert" className="mt-4 text-body text-[var(--color-maryann)]">
+        <p role="alert" className="mt-3 text-label text-bad">
           {error}
         </p>
       )}
 
       {editing && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-ink/25 p-10"
-          onClick={() => setEditingSlug(null)}
-          role="presentation"
-        >
-          <div
-            className="w-[34rem] max-w-full rounded-3xl bg-surface p-8 shadow-[0_20px_60px_-20px_rgba(43,38,32,0.45)]"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${editing.label} color`}
-          >
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span
-                  className="size-8 rounded-full ring-1 ring-black/5"
-                  style={{ backgroundColor: hexFor(selection[editing.slug]) }}
-                  aria-hidden
-                />
-                <h3 className="font-display text-display text-ink">{editing.label}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingSlug(null)}
-                aria-label="Close"
-                className="flex size-12 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-ground-2"
-              >
-                <X className="size-8" strokeWidth={2} aria-hidden />
-              </button>
-            </div>
-            <div
-              className="grid grid-cols-6 justify-items-center gap-4"
-              role="group"
-              aria-label={`${editing.label} color`}
-            >
+        <Sheet label={`${editing.label}'s color`} onClose={() => setEditingSlug(null)} size="sm">
+          <SheetHeader title={`${editing.label}'s color`} onClose={() => setEditingSlug(null)} />
+          <SheetBody>
+            <div className="grid grid-cols-4 justify-items-center gap-4" role="group" aria-label="Colors">
               {SWATCHES.map((sw) => {
                 const on = selection[editing.slug] === sw.id;
                 return (
@@ -144,25 +95,19 @@ export function ColorSettings({ entries }: { entries: ColorEntry[] }) {
                     type="button"
                     aria-label={sw.name}
                     aria-pressed={on}
-                    onClick={() => choose(editing.slug, sw.id)}
+                    onClick={() => void choose(editing.slug, sw.id)}
                     className={`flex size-14 items-center justify-center rounded-full transition-transform active:scale-95 ${
-                      on ? "ring-4 ring-ink ring-offset-2 ring-offset-surface" : ""
+                      on ? "ring-[3px] ring-ink ring-offset-2 ring-offset-surface" : ""
                     }`}
-                    style={{ backgroundColor: sw.hex }}
+                    style={{ backgroundColor: sw.hex, color: sw.text === "dark" ? "#27221c" : "#ffffff" }}
                   >
-                    {on && (
-                      <Check
-                        className={`size-7 ${sw.text === "dark" ? "text-ink" : "text-white"}`}
-                        strokeWidth={3}
-                        aria-hidden
-                      />
-                    )}
+                    {on && <Check className="size-7" strokeWidth={3} aria-hidden />}
                   </button>
                 );
               })}
             </div>
-          </div>
-        </div>
+          </SheetBody>
+        </Sheet>
       )}
     </>
   );

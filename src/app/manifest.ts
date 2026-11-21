@@ -1,18 +1,20 @@
 import type { MetadataRoute } from "next";
 import { appConfig } from "@/lib/config";
 
-// PWA manifest (Phase 0 #12). display: fullscreen so the kiosk browser shows no
-// chrome; the app is only ever the whole screen on a wall.
+// PWA manifest. Fullscreen on the wall's kiosk browser, a standalone app when
+// added to a phone's home screen (browsers fall back from fullscreen to
+// standalone), and free to rotate: the wall is landscape, a phone is not.
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: appConfig.appName,
     short_name: appConfig.appName,
-    description: "The household wall display.",
+    description: "The family hub.",
     start_url: appConfig.defaultRoute,
     display: "fullscreen",
-    orientation: "landscape",
-    background_color: "#f4efe4",
-    theme_color: "#f4efe4",
+    display_override: ["fullscreen", "standalone"],
+    orientation: "any",
+    background_color: "#f5f0e6",
+    theme_color: "#f5f0e6",
     icons: [
       {
         src: "/icon.svg",

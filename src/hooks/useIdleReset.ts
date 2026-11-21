@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
-// Return the wall to its resting state after a stretch of no interaction.
+// Return a view to its resting state after a stretch of no interaction.
 //
 // Every view has the same requirement (spec §6.1 "ambient first"): someone taps
-// to a past month, a filter, a detail panel — then walks away, and the wall
-// should quietly reset itself to today/unfiltered so the next glance from across
-// the room is always the useful default. Phase 1 #14 is the first user; Phases
-// 2–4 reuse this for their own resets.
+// to a past month, a filter, a detail sheet, then walks away, and the screen
+// should quietly reset itself so the next glance is always the useful default.
 //
 // Interaction is any pointer or key event. A hidden→visible transition also
 // counts as "someone's back," and resets the timer without firing.
@@ -24,7 +22,9 @@ export function useIdleReset(
 ) {
   // Hold the latest callback without re-subscribing listeners each render.
   const onIdleRef = useRef(onIdle);
-  onIdleRef.current = onIdle;
+  useLayoutEffect(() => {
+    onIdleRef.current = onIdle;
+  });
 
   useEffect(() => {
     if (!enabled) return;
@@ -40,11 +40,7 @@ export function useIdleReset(
       if (document.visibilityState === "visible") arm();
     };
 
-    const events: (keyof WindowEventMap)[] = [
-      "pointerdown",
-      "keydown",
-      "wheel",
-    ];
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "wheel"];
     events.forEach((e) => window.addEventListener(e, arm, { passive: true }));
     document.addEventListener("visibilitychange", onVisibility);
 

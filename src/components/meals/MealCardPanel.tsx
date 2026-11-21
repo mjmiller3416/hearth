@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BookOpen,
   Check,
@@ -15,28 +15,25 @@ import {
   X,
 } from "lucide-react";
 import type { CardRecipe, Ingredient, MealCard, MealCardPayload } from "@/lib/spoon/types";
+import { Button, IconButton } from "@/components/ui/Button";
+import { EmptyState, Loading } from "@/components/ui/Card";
+import { Sheet, SheetBody, SheetFooter } from "@/components/ui/Sheet";
 import { FoodGlyph, mealTone, type MealTone } from "./mealVisuals";
 
-// The meal card (Phase 4, spec §4.5): opens when a meal in the plan is tapped.
-// Reads full — every recipe the meal is composed of (main dish first, then
-// sides), each with its ingredients and step-by-step directions, the same card
-// Enchanted Spoon renders in its Meal Planner. Read-only (D6): there is no
-// assign, swap, or edit here — planning stays on the phone.
-//
-// Dismissed by tapping outside, the close control, or Escape (matches DayPanel).
-// The card scrolls within the panel, never the page (kiosk — nothing scrolls at
-// the app level).
+// The meal card (spec §4.5): opens when a meal is tapped, anywhere it appears.
+// Every recipe the meal is made of (main dish first, then sides), each with its
+// ingredients and step-by-step directions: the same card Enchanted Spoon shows
+// in its planner. Read-only (D6) but for "Mark as cooked"; planning stays in
+// Enchanted Spoon.
 
 /** "1 lb", "3 cloves"; plain numbers (JS already drops a trailing .0). */
 function formatQuantity(quantity: number | null, unit: string | null): string {
   if (quantity == null) return unit ?? "";
-  const n = String(quantity);
-  return unit ? `${n} ${unit}` : n;
+  return unit ? `${quantity} ${unit}` : String(quantity);
 }
 
-// Ingredients are grouped by aisle on the card, the way a shopping list reads.
-// Known categories sort in a sensible kitchen order; anything else falls to the
-// end alphabetically, and missing categories collect under "Other".
+// Ingredients are grouped by aisle, the way a shopping list reads. Known
+// categories sort in a sensible kitchen order; anything else falls to the end.
 const CATEGORY_ORDER = [
   "Produce",
   "Meat",
@@ -65,51 +62,34 @@ function groupIngredients(ingredients: Ingredient[]): Array<{ category: string; 
   return [...known, ...extra].map((category) => ({ category, items: byCategory.get(category)! }));
 }
 
-/** A section title with a soft tinted icon badge (Ingredients teal, Directions
- *  purple — echoing Enchanted Spoon's own card). */
-function SectionHeader({
-  icon: Icon,
-  label,
-  tone,
-}: {
-  icon: LucideIcon;
-  label: string;
-  tone: "teal" | "accent";
-}) {
-  const badge = tone === "teal" ? "bg-teal-soft text-teal-strong" : "bg-accent-soft text-accent";
+function SectionHeader({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <h4 className="mb-4 flex items-center gap-3">
-      <span className={`grid size-11 shrink-0 place-items-center rounded-xl ${badge}`}>
-        <Icon className="size-6" strokeWidth={2} aria-hidden />
-      </span>
-      <span className="text-title font-display leading-none text-ink">{label}</span>
+    <h4 className="mb-3 flex items-center gap-2.5 text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
+      <Icon className="size-5 text-ink-faint" strokeWidth={2} aria-hidden />
+      {label}
     </h4>
   );
 }
 
-/** The prep / cook / total / servings / difficulty row, as small chips. */
-function StatChips({ recipe }: { recipe: CardRecipe }) {
+/** The prep / cook / total / servings / difficulty row. */
+function Stats({ recipe }: { recipe: CardRecipe }) {
   const stats: Array<{ icon: LucideIcon; label: string; value: string }> = [];
-  if (recipe.prepTime != null) stats.push({ icon: Timer, label: "Prep", value: `${recipe.prepTime}m` });
-  if (recipe.cookTime != null) stats.push({ icon: Flame, label: "Cook", value: `${recipe.cookTime}m` });
-  if (recipe.totalTime != null) stats.push({ icon: Clock, label: "Total", value: `${recipe.totalTime}m` });
+  if (recipe.prepTime != null) stats.push({ icon: Timer, label: "Prep", value: `${recipe.prepTime} min` });
+  if (recipe.cookTime != null) stats.push({ icon: Flame, label: "Cook", value: `${recipe.cookTime} min` });
+  if (recipe.totalTime != null) stats.push({ icon: Clock, label: "Total", value: `${recipe.totalTime} min` });
   if (recipe.servings != null) stats.push({ icon: Users, label: "Serves", value: String(recipe.servings) });
   if (recipe.difficulty) stats.push({ icon: Gauge, label: "Level", value: recipe.difficulty });
   if (stats.length === 0) return null;
   return (
-    <div className="mb-6 flex flex-wrap gap-3">
+    <dl className="mb-5 flex flex-wrap gap-2">
       {stats.map((s) => (
-        <div key={s.label} className="flex items-center gap-3 rounded-2xl bg-ground px-4 py-2.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
-            <s.icon className="size-5" strokeWidth={2} aria-hidden />
-          </span>
-          <span className="flex flex-col leading-tight">
-            <span className="text-stamp text-ink-faint">{s.label}</span>
-            <span className="text-label font-medium text-ink">{s.value}</span>
-          </span>
+        <div key={s.label} className="flex items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2 ring-1 ring-inset ring-hairline">
+          <s.icon className="size-4 text-ink-faint" strokeWidth={2} aria-hidden />
+          <dt className="text-stamp text-ink-faint">{s.label}</dt>
+          <dd className="text-label font-semibold text-ink">{s.value}</dd>
         </div>
       ))}
-    </div>
+    </dl>
   );
 }
 
@@ -124,49 +104,46 @@ function RecipeBlock({
 }) {
   const groups = groupIngredients(recipe.ingredients);
   return (
-    <section className={isFirst ? "" : "border-t border-hairline pt-8"}>
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <section className={isFirst ? "" : "border-t border-hairline pt-7"}>
+      <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h3 className="font-display text-title leading-tight text-ink">{recipe.name}</h3>
         {recipe.role === "side" && (
-          <span className="rounded-full bg-teal-soft px-4 py-1 text-label font-medium leading-none text-teal-strong">
+          <span className="rounded-full bg-surface-2 px-3 py-1 text-stamp font-semibold uppercase tracking-wide text-ink-soft ring-1 ring-inset ring-hairline">
             Side
           </span>
         )}
       </div>
 
-      <StatChips recipe={recipe} />
+      <Stats recipe={recipe} />
 
       {recipe.description && (
-        <p className="mb-6 text-body leading-relaxed text-ink-soft">{recipe.description}</p>
+        <p className="mb-5 text-body leading-relaxed text-ink-soft">{recipe.description}</p>
       )}
 
-      <div className="grid grid-cols-[minmax(0,24rem)_minmax(0,1fr)] gap-10 max-[70rem]:grid-cols-1">
+      <div className="grid gap-8 wide:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
         <div>
-          <SectionHeader icon={BookOpen} label="Ingredients" tone="teal" />
+          <SectionHeader icon={BookOpen} label="Ingredients" />
           {recipe.ingredients.length === 0 ? (
             <p className="text-body text-ink-faint">No ingredients listed.</p>
           ) : (
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
               {groups.map((group) => (
                 <div key={group.category}>
-                  <p className="mb-2 text-stamp font-medium uppercase tracking-wide text-ink-faint">
+                  <p className="mb-1.5 text-stamp font-semibold uppercase tracking-[0.1em] text-ink-faint">
                     {group.category}
                   </p>
-                  <ul className="flex flex-col gap-2">
+                  <ul className="flex flex-col gap-1.5">
                     {group.items.map((ing, i) => {
                       const measure = formatQuantity(ing.quantity, ing.unit).trim();
                       return (
-                        <li
-                          key={`${ing.name}-${i}`}
-                          className="flex items-baseline gap-3 text-body text-ink"
-                        >
+                        <li key={`${ing.name}-${i}`} className="flex items-baseline gap-2.5 text-body text-ink">
                           <span
-                            className="mt-3 size-2 shrink-0 rounded-full"
+                            className="relative top-[-0.15em] size-1.5 shrink-0 rounded-full"
                             style={{ background: tone.ink }}
                             aria-hidden
                           />
                           <span className="min-w-0">
-                            {measure && <span className="font-medium">{measure} </span>}
+                            {measure && <span className="font-semibold">{measure} </span>}
                             {ing.name}
                           </span>
                         </li>
@@ -180,15 +157,15 @@ function RecipeBlock({
         </div>
 
         <div>
-          <SectionHeader icon={Utensils} label="Directions" tone="accent" />
+          <SectionHeader icon={Utensils} label="Directions" />
           {recipe.steps.length === 0 ? (
             <p className="text-body text-ink-faint">No directions listed.</p>
           ) : (
-            <ol className="flex flex-col gap-4">
+            <ol className="flex flex-col gap-3.5">
               {recipe.steps.map((step, i) => (
-                <li key={i} className="flex gap-4 text-body leading-relaxed text-ink">
+                <li key={i} className="flex gap-3.5 text-body leading-relaxed text-ink">
                   <span
-                    className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-accent-soft font-display text-label leading-none text-accent"
+                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-ink font-display text-label leading-none text-on-ink"
                     aria-hidden
                   >
                     {i + 1}
@@ -199,7 +176,7 @@ function RecipeBlock({
             </ol>
           )}
           {recipe.notes && (
-            <p className="mt-6 rounded-2xl bg-accent-soft/50 p-5 text-body text-ink-soft">
+            <p className="mt-5 rounded-2xl bg-surface-2 p-4 text-body text-ink-soft ring-1 ring-inset ring-hairline">
               {recipe.notes}
             </p>
           )}
@@ -219,20 +196,18 @@ export function MealCardPanel({
   /** The name from the plan row, shown as the header until the card loads. */
   mealName: string;
   onClose: () => void;
-  /** Mark this meal cooked and dismiss — the same write the tile offers, for
-   *  when you finish cooking with the recipe open. Omit to hide the action. */
+  /** Mark this meal cooked and dismiss. Omit to hide the action. */
   onCooked?: () => void;
 }) {
   const [card, setCard] = useState<MealCard | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error" | "gone">("loading");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/meals/${encodeURIComponent(mealId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`/api/meals/${encodeURIComponent(mealId)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`card ${res.status}`);
         const data = (await res.json()) as MealCardPayload;
         if (cancelled) return;
@@ -249,118 +224,90 @@ export function MealCardPanel({
     return () => {
       cancelled = true;
     };
-  }, [mealId]);
-
-  const onKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    },
-    [onClose],
-  );
-  useEffect(() => {
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onKey]);
+  }, [mealId, attempt]);
 
   const title = card?.mealName ?? mealName;
   const tone = mealTone(card?.mealId ?? mealId);
-  // The hero uses the main dish's photo when there is one; otherwise a tone
-  // banner. (imageUrl is null on every recipe today — see mealVisuals.)
   const heroImage =
     card?.recipes.find((r) => r.role === "main")?.imageUrl ?? card?.recipes[0]?.imageUrl ?? null;
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-10"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className="flex max-h-full w-[72rem] max-w-full flex-col overflow-hidden rounded-3xl bg-surface shadow-[0_24px_70px_-24px_rgba(43,38,32,0.5)]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        {/* Hero banner — a photo when Enchanted Spoon has one, else a colored
-            tone banner with a large watermark glyph and dark, legible title. */}
-        <div className="relative h-52 w-full shrink-0">
-          {heroImage ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={heroImage} alt="" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/15 to-transparent" />
-              <h2 className="absolute inset-x-0 bottom-0 px-8 pb-6 font-display text-display leading-tight text-white">
-                {title}
-              </h2>
-            </>
-          ) : (
-            <div className="relative h-full w-full overflow-hidden" style={{ background: tone.gradient }}>
-              <FoodGlyph
-                name={title}
-                className="pointer-events-none absolute -right-6 -bottom-10 size-64"
-                strokeWidth={1.25}
-                style={{ color: tone.ink, opacity: 0.18 }}
-              />
-              <h2
-                className="absolute inset-x-0 bottom-0 px-8 pb-6 font-display text-display leading-tight"
-                style={{ color: tone.ink }}
-              >
-                {title}
-              </h2>
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="absolute right-6 top-6 flex size-12 shrink-0 items-center justify-center rounded-full bg-surface/90 text-ink-soft shadow-sm backdrop-blur-sm transition-colors hover:bg-surface"
-          >
-            <X className="size-7" strokeWidth={2} aria-hidden />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
-          {state === "loading" ? (
-            <p className="py-10 text-center text-body text-ink-faint">Opening the card…</p>
-          ) : state === "gone" ? (
-            <p className="py-10 text-center text-body text-ink-faint">
-              This meal isn’t on the plan anymore.
-            </p>
-          ) : state === "error" ? (
-            <p className="py-10 text-center text-body text-ink-faint">
-              Couldn’t load this meal. It’ll retry on the next refresh.
-            </p>
-          ) : card ? (
-            <div className="flex flex-col gap-8">
-              {card.recipes.map((recipe, i) => (
-                <RecipeBlock key={recipe.id} recipe={recipe} isFirst={i === 0} tone={tone} />
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {/* Footer: mark cooked from the card too — the natural moment is right
-            after cooking, recipe still open. Read-only otherwise (spec D6). */}
-        {onCooked && (
-          <div className="flex shrink-0 items-center justify-end border-t border-hairline px-8 py-5">
-            <button
-              type="button"
-              onClick={onCooked}
-              className="flex items-center gap-3 rounded-full bg-teal-strong px-7 py-3.5 text-label font-medium leading-none text-white shadow-sm transition-transform active:scale-95"
+    <Sheet label={title} onClose={onClose} size="xl">
+      {/* Hero: a photo when Enchanted Spoon has one, else the meal's tone. */}
+      <div className="relative h-36 w-full shrink-0 wide:h-44">
+        {heroImage ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={heroImage} alt="" className="h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+            <h2 className="absolute inset-x-0 bottom-0 px-5 pb-4 font-display text-display leading-tight text-white wide:px-7">
+              {title}
+            </h2>
+          </>
+        ) : (
+          <div className="relative h-full w-full overflow-hidden" style={{ background: tone.gradient }}>
+            <FoodGlyph
+              name={title}
+              className="pointer-events-none absolute -bottom-8 -right-4 size-48"
+              strokeWidth={1.25}
+              style={{ color: tone.ink, opacity: 0.2 }}
+            />
+            <h2
+              className="absolute inset-x-0 bottom-0 px-5 pb-4 pr-16 font-display text-display leading-tight wide:px-7"
+              style={{ color: tone.ink }}
             >
-              <Check className="size-6" strokeWidth={2.5} aria-hidden />
-              Mark as cooked
-            </button>
+              {title}
+            </h2>
           </div>
         )}
+        <IconButton
+          label="Close"
+          onClick={onClose}
+          variant="secondary"
+          className="absolute right-3 top-3 bg-surface shadow-card"
+        >
+          <X className="size-6" strokeWidth={2} aria-hidden />
+        </IconButton>
       </div>
-    </div>
+
+      <SheetBody>
+        {state === "loading" ? (
+          <Loading rows={5} />
+        ) : state === "gone" ? (
+          <EmptyState icon={Salad} title="This meal isn't on the plan anymore" />
+        ) : state === "error" ? (
+          <EmptyState
+            icon={Salad}
+            title="Couldn't open this recipe"
+            action={<Button onClick={() => { setState("loading"); setAttempt((n) => n + 1); }}>Try again</Button>}
+          >
+            Enchanted Spoon didn&rsquo;t answer.
+          </EmptyState>
+        ) : card ? (
+          <div className="flex flex-col gap-7">
+            {card.recipes.map((recipe, i) => (
+              <RecipeBlock key={recipe.id} recipe={recipe} isFirst={i === 0} tone={tone} />
+            ))}
+          </div>
+        ) : null}
+      </SheetBody>
+
+      {onCooked && (
+        <SheetFooter>
+          <span className="hidden flex-1 text-stamp text-ink-faint wide:block">
+            Cooked meals leave the plan. Bring one back in Enchanted Spoon.
+          </span>
+          <Button variant="primary" className="flex-1 wide:flex-none" onClick={onCooked}>
+            <Check className="size-5" strokeWidth={2.75} aria-hidden />
+            Mark as cooked
+          </Button>
+        </SheetFooter>
+      )}
+    </Sheet>
   );
 }
 
-// Kept tiny so the plan tile and the panel agree on how a meal's supporting
-// facts read. Each fact gets a soft accent icon chip (a Tada touch).
+/** A meal's supporting facts (time, sides), the same wherever a meal shows. */
 export function MealMeta({
   totalTime,
   sideDishCount,
@@ -375,12 +322,10 @@ export function MealMeta({
   }
   if (items.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-label text-ink-soft">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-ink-soft">
       {items.map(({ icon: Icon, text }) => (
-        <span key={text} className="flex items-center gap-2.5">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
-            <Icon className="size-5" strokeWidth={2} aria-hidden />
-          </span>
+        <span key={text} className="flex items-center gap-1.5">
+          <Icon className="size-4 text-ink-faint" strokeWidth={2} aria-hidden />
           {text}
         </span>
       ))}

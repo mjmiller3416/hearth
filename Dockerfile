@@ -30,16 +30,25 @@ ENV NODE_ENV=production
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+# su-exec: lets the entrypoint drop from root to the app user (see below).
+RUN apk add --no-cache su-exec
 
 # Order matters: standalone first, then static + public (avoids overwriting)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-USER nextjs
+# The server runs as the unprivileged "nextjs" user. There is deliberately no
+# USER line: the entrypoint starts as root only to make the data volume
+# (HEARTH_DATA_DIR, mounted root-owned by Railway) writable by that user, then
+# drops to it with su-exec before starting node. The sed strips CRs in case the
+# script was checked out on Windows.
+COPY scripts/docker-entrypoint.sh /usr/local/bin/hearth-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/hearth-entrypoint && chmod 755 /usr/local/bin/hearth-entrypoint
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+ENTRYPOINT ["hearth-entrypoint"]
 CMD ["node", "server.js"]

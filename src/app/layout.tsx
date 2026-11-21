@@ -1,22 +1,36 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Figtree, Fraunces } from "next/font/google";
 import "./globals.css";
 import { KioskGuards } from "@/components/common/KioskGuards";
-import { appConfig } from "@/lib/config";
+import { appConfig, NIGHT_END, NIGHT_START } from "@/lib/config";
 
-// Characterful display face for dates and headings; clean face for everything
-// else (spec §7). Loaded via next/font so there are no external font requests
-// at runtime — important for a device that may briefly lose network.
+// A characterful display face for dates, headings and big numerals; a friendly,
+// very legible face for everything else (spec §7). Loaded via next/font so there
+// are no external font requests at runtime: a wall that briefly loses its
+// network keeps its type.
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   display: "swap",
 });
-const inter = Inter({
-  variable: "--font-inter",
+const figtree = Figtree({
+  variable: "--font-figtree",
   subsets: ["latin"],
   display: "swap",
 });
+
+const toMinutes = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// Sets <html data-theme> before the first paint, from this device's stored
+// choice, what kind of screen it is and (for a shared screen on Auto) the hour.
+// It mirrors resolveTheme() in ScreenKeepers, which takes over after hydration
+// and keeps it right (using the household's timezone; this uses the device's
+// own clock, which is close enough for one paint). Plain ES5 on purpose: it
+// runs before anything else loads.
+const THEME_SCRIPT = `(function(){try{var s=localStorage,c=s.getItem("hearth.theme"),f=s.getItem("hearth.device"),k=false;if(c==="dark")k=true;else if(c!=="light"){var w=f==="wall"||(f!=="personal"&&innerWidth>=900&&(matchMedia("(pointer: coarse)").matches||navigator.maxTouchPoints>0)&&!matchMedia("(any-pointer: fine)").matches);if(w){var d=new Date(),t=d.getHours()*60+d.getMinutes(),a=${toMinutes(NIGHT_START)},b=${toMinutes(NIGHT_END)};k=a>b?(t>=a||t<b):(t>=a&&t<b)}else k=matchMedia("(prefers-color-scheme: dark)").matches}document.documentElement.dataset.theme=k?"dark":"light"}catch(e){}})()`;
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -26,16 +40,16 @@ export const viewport: Viewport = {
   minimumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#f4efe4",
+  themeColor: "#f5f0e6",
 };
 
 export const metadata: Metadata = {
   applicationName: appConfig.appName,
   title: appConfig.appName,
-  description: "The household wall display.",
+  description: "The family hub.",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg", apple: "/icon.svg" },
-  // PWA / kiosk hints.
+  // Home-screen app on a phone, kiosk on the wall.
   appleWebApp: { capable: true, title: appConfig.appName, statusBarStyle: "default" },
   other: { "mobile-web-app-capable": "yes" },
 };
@@ -44,8 +58,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${fraunces.variable} ${inter.variable} antialiased`}>
+    // data-theme is set before first paint by the inline script, so the
+    // attribute legitimately differs from the server render.
+    // The font variables go on <html>: the theme's --font-display / --font-body
+    // are defined at :root and reference them, so they must resolve there. (On
+    // <body> they were out of reach, and the app fell back to system fonts.)
+    <html lang="en" suppressHydrationWarning className={`${fraunces.variable} ${figtree.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="antialiased">
         <KioskGuards />
         {children}
       </body>

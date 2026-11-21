@@ -1,35 +1,60 @@
 # Hearth
 
-A wall-mounted, always-on household surface. It surfaces the family calendar,
-Tada!'s cleaning and lists, and Enchanted Spoon's meal plan and shopping list —
-for a screen viewed six to ten feet away and a hand reaching up to it.
+The family hub: one place for the household's calendar, the kids' school day
+and chores, the cleaning session, dinner and the shopping list. It runs on the
+wall display in the living room and on everyone's phone, from the same address.
 
-Hearth is a **client**, not a store — a second frontend, co-equal with the
-phone, that the family can run Tada! and Enchanted Spoon from without picking up
-a device. It has no database. Tada! and Enchanted Spoon own the real data and
-logic (decay ranking, reward state, meal plans, shopping-list math); Hearth
-reads and writes their APIs and renders them, computing nothing itself. See
-[`docs/app-spec.md`](docs/app-spec.md) for the full spec and locked decisions,
-and [`docs/plans/prompts.md`](docs/plans/prompts.md) for the phased build.
+Hearth is a **client**, not a store. Google Calendar, Tada!, Tandem and Enchanted
+Spoon own the real data and logic (decay ranking, reward state, meal plans,
+shopping-list math); Hearth reads and writes their APIs and renders them,
+computing nothing itself. It has no database. See
+[`docs/app-spec.md`](docs/app-spec.md) for the spec and locked decisions.
 
-**Status:** Phase 2 — Clean & Chores. The shell (routing, the stale-data
-contract, kiosk hardening, deploy scaffolding) is in place and hardened; device
-authorization lives in the route and page logic, not middleware (see
-[Security](#security)); Next is on 16.3.0. The **Calendar** view renders the
-family's Google calendars and can create, edit, and delete non-recurring events
-from the wall, on a per-member-calendar model (see
-[Calendar](#calendar-phase-1)). Phase 2 adds **Clean** (Maryann's guided
-cleaning session) and **Chores** (the kids' checklist), both driven by Tada! (see
-[Clean & Chores](#clean--chores-phase-2)) — this is where Hearth stops being
-read-only and begins **writing** task completions; it also adds a **Settings**
-view for customizing the family colors, whose choice is Hearth's one piece of
-persisted state (spec D12). **Meals** is live — a read-only view of the current
-plan and tap-to-open meal cards (ingredients + recipe) from the real Enchanted
-Spoon backend (`docs/enchanted-spoon-integration.md`). **Shopping** is live for
-reading the household list and **adding items** (see [Shopping](#shopping-phase-4));
-checking off, editing and removing come later. **Lists** still renders a
-placeholder. (The plan was reworked: Tasks split into **Clean** + **Chores**, and
-the Recipes placeholder became **Shopping** — see the spec.)
+## How the hub is organized
+
+Five destinations, by what the family is doing rather than which app owns the
+data (`NAV` in [`src/lib/config.ts`](src/lib/config.ts)):
+
+| Destination | What it is | Source |
+|---|---|---|
+| **Today** (`/`) | Everything that matters today on one screen, with the everyday actions in place: check off a chore, finish the cleaning task, open tonight's recipe, add to the shopping list, add an event. | all of them |
+| **Calendar** | Month and week; create, edit and delete non-recurring events. A phone gets a month of dots with the tapped day listed beneath. | Google Calendar |
+| **School** | Lincoln's and Ollie's Monday–Friday week. A phone gets one day as a list with "now" marked. | Tandem |
+| **Chores** | The kids' checklists, and Maryann's one-task-at-a-time cleaning session. | Tada! |
+| **Kitchen** | The dinner plan with recipes, beside the shopping list. | Enchanted Spoon |
+
+**The lens ("who's looking").** The people across the header (a button on a
+phone) narrow every screen to one person: their events plus the family's, their
+school day, their chores, and for a kid their allowance. Nobody selected is the
+whole family's day. It is attribution, not a login (spec §6.3). A phone
+remembers its lens, so a kid's phone opens on that kid's day.
+
+**Every source stands alone.** Each card polls its own app (every minute, and
+when the screen comes back into view) and shows one of the same four states
+everywhere: loading, not connected, can't reach it right now, or its data with a
+quiet "as of 8:14" once it has gone stale. One app being down never blanks the
+rest. Settings → Connected apps checks all of them live.
+
+**Shared screens and personal screens.** Hearth tells the wall from a phone or
+laptop by its size and pointer (Settings → This screen overrides the guess):
+
+- A **shared** screen (large, touch-only) types with the in-app keyboard, covers
+  allowance amounts until tapped, switches to the evening theme at night
+  (`NIGHT_START`/`NIGHT_END` in `config.ts`), and after three idle minutes goes
+  back to Today with nobody selected (`IDLE_HOME_MS`). That idle return replaced
+  the old timed view schedule: Today already shows what each time of day used to
+  switch to.
+- A **personal** screen uses its own keyboard and date/time pickers, follows its
+  own light/dark setting, and stays where it was left.
+
+The old addresses (`/clean`, `/schedule`, `/meals`, `/shopping`, `/lists`)
+redirect to where those screens live now (`next.config.ts`).
+
+**Status.** Calendar, School, Meals and Shopping (read + add) run against the
+real apps. Chores and Cleaning call the Tada! contract in
+`docs/tada-integration-requirements.md`. Tada!'s lists and supplies shelf
+(spec §4.4, §4.6) are not built. Allowance amounts are parent-entered (see
+[Allowance](#allowance-and-greenlight)).
 
 ## Stack
 
@@ -149,7 +174,8 @@ components, and never reaches the browser bundle.
 | `FAMILY_CALENDAR_ID` | 1.5 | Shared family calendar id. Whole-family events are written here as one event; phone-made events here also show on the wall. (Replaces the old `CALENDAR_MAP`.) |
 | `HOUSEHOLD_TIMEZONE` | 1.5 | IANA name (e.g. `America/New_York`) — required for event creation. |
 | `HEARTH_CALENDAR_MOCK` | 1 · 1.5 | Local dev only — serves synthetic calendar events (incl. the create/edit/delete reconcile). Ignored in production. |
-| `HEARTH_DATA_DIR` | 2 | Absolute path (a Railway volume, e.g. `/data`) for the shared colors file (spec D12). Unset → in-process memory that resets on redeploy. |
+| `HEARTH_DATA_DIR` | 2 | Absolute path of a persistent volume (Railway: `/data`) for Hearth's own two files: the family colors (spec D12) and the allowance balances and parent PIN (spec D13). Unset → a local folder that is replaced on every deploy; Settings says so. |
+| `HEARTH_PARENT_PIN` | — | Optional. While set (4–8 digits), this is the parent PIN, overriding the one saved in Settings. For a forgotten PIN: set it, use it in Settings → Allowance → Change PIN to save a new one, then remove it. |
 | `TADA_API_URL` / `TADA_DEVICE_TOKEN` | 2 · 4 | Tada! base URL + device token. Reads (Clean session, rooms, completions, chores; supplies roster in Phase 4) + scoped writes: completions in Phase 2, supply flag-low in Phase 4. |
 | `TADA_MEMBERS` | 2 | JSON array of `{ memberKey, tadaUserId, role }` — the people the wall may complete tasks as (the acting-member allowlist). `memberKey` links to `MEMBERS` for name + color; `role` is `adult` or `kid`. |
 | `HEARTH_ADULT_ID` | 2 | Maryann's Tada! user id — whose session the Clean view is, and whose completions done-today shows. |
@@ -160,26 +186,6 @@ components, and never reaches the browser bundle.
 | `HEARTH_MCP_SECRET` | MCP | HMAC key for the connector's client ids, codes and tokens (32+ chars). Rotating it disconnects every ChatGPT connection. |
 | `HEARTH_MCP_PASSWORD` | MCP | The connect password asked on the connector's consent page (the wall's own browser skips it). |
 | `HEARTH_MCP_ENABLED` | MCP | Kill switch for the connector: `0`/`false`/`off` → every connector route 404s. Default on. |
-
-### Timed view schedule
-
-The wall switches views by itself through the day, by the household clock
-(`HOUSEHOLD_TIMEZONE`, the time shown in the header). The times live in
-`VIEW_SCHEDULE` in [`src/lib/config.ts`](src/lib/config.ts). To change them, edit
-that list and deploy:
-
-| Time | View |
-|---|---|
-| 8:55 am | Schedule |
-| 4:45 pm | Chores |
-| 6:30 pm | Meals |
-| 10:00 pm | Calendar |
-
-The switch happens only when a boundary passes. If the wall was touched in the
-last minute, it waits until the wall has been left alone for a minute. Tapping
-to another view between boundaries sticks. `/` opens whichever view is due right
-now. The switching is done by `src/components/common/ViewScheduler.tsx`, with
-the slot math in `src/lib/viewSchedule.ts`.
 
 ## Calendar (Phase 1)
 
@@ -215,9 +221,10 @@ Configuration is two variables: `MEMBERS` (the ordered people, each with their o
 `calendarId`) and `FAMILY_CALENDAR_ID` (the shared calendar). There is no longer a
 `CALENDAR_MAP`. See [`.env.example`](.env.example).
 
-The whole view is authored on a fixed **1920×1080** canvas and scaled to fit the
-window it runs in (spec §6.1 — one drawn resolution, fitted, never reflowed), so
-it is pixel-crisp on the wall and never clipped in a smaller dev window.
+On a wide screen the month fills the frame; a phone gets the month as a compact
+grid of dots with the tapped day's events listed beneath and a floating add
+button. The event form uses the phone's own date and time pickers; on the wall
+it steps dates and times with large buttons and types with the in-app keyboard.
 
 **One-time manual setup** (per [`docs/plans/prompts.md`](docs/plans/prompts.md)
 Phase 1, done by an operator — it needs real Google credentials):
@@ -252,10 +259,11 @@ so it can never reach the wall.
 
 ## Clean & Chores (Phase 2)
 
-Two sidebar destinations built from one Tada! integration, with deliberately
-different philosophies (spec §4.2–4.3, D4/D5):
+One destination (**Chores**) with two modes built from one Tada! integration,
+with deliberately different philosophies (spec §4.2–4.3, D4/D5). Today shows
+both in compact form: the kids' lists, and the one next cleaning task.
 
-- **Clean** is Maryann's guided cleaning session. A room picker scopes it; below,
+- **Cleaning** is Maryann's guided cleaning session. A room picker scopes it; below,
   Tada! surfaces the single highest-decay task **one at a time** — large and
   alone, with a big complete target. Completing it cross-fades in the next task.
   There is **no queue, no backlog, no remaining count, no "up next"** — that
@@ -264,7 +272,7 @@ different philosophies (spec §4.2–4.3, D4/D5):
   prevent. Beside it, **done-today** celebrates completions as they land, with
   **no total, denominator, or progress bar**. When nothing is due, it rests on a
   calm "all caught up," never a reproach.
-- **Chores** is the kids' checklist — one column per kid in their member color,
+- **Kids** is the kids' checklist — one column per kid in their member color,
   each chore a row with a large tap target. The asymmetry with Clean is
   intentional: kids have a tracking problem, not a paralysis one, so their
   surface *is* a list they can check off. No streaks, badges, or stars — Tada!
@@ -286,8 +294,8 @@ today fills, and undo reverses, all in dev-server memory. Ignored in production.
 yet expose — a static device token, an acting-member override, a single
 next-task-by-room read, and a per-kid chores read. Those are specified precisely
 in [`docs/tada-integration-requirements.md`](docs/tada-integration-requirements.md).
-Until they land, `/clean` and `/chores` degrade calmly to a "not connected"
-state (spec §6.2), and local development runs on `HEARTH_TASKS_MOCK=1`.
+Without them, the chores cards show a calm "Tada! isn't connected" (spec §6.2),
+and local development runs on `HEARTH_TASKS_MOCK=1`.
 
 ## Shopping (Phase 4)
 
@@ -310,22 +318,66 @@ Routes: `GET /api/shopping` and `POST /api/shopping/items` (both `requireDevice(
 first), forwarding to Enchanted Spoon's `/api/hearth/shopping` and
 `/api/hearth/shopping/items`. Contract: `docs/enchanted-spoon-integration.md`.
 
-## Target device
+## Allowance and Greenlight
 
-Layout is built for a **1920×1080 landscape** panel viewed from six to ten
-feet. The type scale lives in `src/app/globals.css` under `@theme` — tune those
-tokens against the real hardware (do not scatter sizes through components). The
-**member colors** are defined there as defaults (as CSS `--color-<slug>` tokens),
-driven by the `MEMBERS` config and customizable at runtime in Settings (spec
-D3/D12).
+The kids' money lives on Greenlight. The goal was for each kid to see what they
+have without opening the Greenlight app. **Greenlight offers no supported way
+for a household to read balances** (checked 2026-11-20):
+
+- No consumer API, developer portal, personal token, webhook or scheduled
+  export. Its APIs are for enterprise partners (banks, credit unions, employers).
+- It is not a listed institution on Plaid; Greenlight uses Plaid only inbound, to
+  link the funding bank. Monarch's connection list has no Greenlight entry.
+- Balance views are the app, on-demand statements, and Greenlight's own Family
+  Hub display, whose web experience "is only accessible from a physical Hub
+  device".
+- Its device terms forbid scraping and automated extraction, so Hearth uses no
+  private endpoints and never asks for a Greenlight login.
+- The US open-banking rule (CFPB §1033) that could one day require a data
+  interface is stayed and being rewritten.
+
+So Hearth shows a **parent-entered amount** instead, and never passes it off as
+synced:
+
+- **Parents** enter what the Greenlight app shows, in Settings → Allowance,
+  behind a parent PIN (set there on first use; 5 wrong tries lock it for 15
+  minutes). The ChatGPT connector can do the same (`set_allowance_balance`).
+- **A kid** sees their own amount on Today under their own lens, always labeled
+  "A parent entered this <date> · Not synced with Greenlight". A sibling's lens,
+  an adult's lens and the shared family view get no amounts at all: the server
+  returns a balance only to the kid it belongs to (`GET /api/allowance?viewer=`),
+  and everything else needs the PIN. On a shared screen the amount stays covered
+  until tapped.
+- The lens is not a login, so a sibling who taps their brother's face on the wall
+  can see his amount. The PIN is what actually protects changing it.
+
+Storage is one small file (`allowance.json`: an amount, a date and an optional
+note per kid, plus the hashed PIN) in `HEARTH_DATA_DIR`. No transactions, no
+history, no arithmetic (spec D13). Each balance carries a `source` field
+(`"manual"` is the only value), so a synced source, if one ever exists, would be
+a separate, separately-labeled thing.
+
+## Screens
+
+The layout has two forms: **wide** (900px and up: a rail, a header, panels that
+scroll inside the frame) and **phone** (one column, a tab bar). On a wide screen
+the root font size follows the viewport (a 1920×1080 wall gets a 20px rem, a
+1280×720 panel 13.3px), so the wall keeps the same proportions at any
+resolution; sizes throughout are `rem`. The type scale and every color are
+tokens in `src/app/globals.css`, with a second set of values for the evening
+theme. Tune them there, not in components. Member colors are defined there as
+defaults (`--color-<slug>`), driven by `MEMBERS` and customizable in Settings
+(spec D3/D12).
 
 ## Deploy (Railway)
 
 One service in the existing Railway project, pointed at this repo,
 single-branch auto-deploy. Docker builder (`railway.json` → `Dockerfile`),
 health check at `/health`. Set the environment variables above as service
-variables. No database; the only optional infrastructure is a persistent volume
-mounted at `HEARTH_DATA_DIR`, which holds only the shared colors file (spec D12).
+variables. No database. A volume mounted at `HEARTH_DATA_DIR` (`/data`) holds
+Hearth's own two files (colors and allowance). Railway mounts volumes owned by
+root, so the container's entrypoint (`scripts/docker-entrypoint.sh`) hands that
+directory to the app user and then drops to it; the server never runs as root.
 
 ## Kiosk / hardware (Phase 5)
 

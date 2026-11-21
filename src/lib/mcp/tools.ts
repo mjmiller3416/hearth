@@ -1,4 +1,5 @@
 import { fail, ok, type ActionResult } from "@/lib/action";
+import { listAllowance, setBalanceTrusted } from "@/lib/allowance/actions";
 import {
   createEvent,
   deleteEvent,
@@ -67,6 +68,8 @@ export const UNCOVERED_ROUTES: Record<string, string> = {
   "PUT /api/settings": "Family colors are a display preference (theme) for the wall.",
   "GET /api/home-base/summary":
     "Home Base's own read-only feed (its token, not the wall's); ChatGPT reads each source through its own tools.",
+  "POST /api/allowance/pin":
+    "The parent PIN guards the wall's screens; the connector is already limited to a parent by its connect password.",
 };
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
@@ -734,5 +737,39 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
     routes: ["GET /api/schedule"],
     run: (args) => scheduleWeek(str(args, "week") ?? restingMonday(householdToday(resolveTimeZone()))),
+  },
+
+  // ── Allowance (parent-entered; nothing is synced from Greenlight) ──
+  {
+    name: "get_allowance",
+    title: "Get the kids' allowance balances",
+    description:
+      "What each kid has, as a parent last entered it on Hearth. These are typed-in amounts, NOT synced " +
+      "from Greenlight (Greenlight offers no way to read balances), so `asOf` is when the amount was " +
+      "entered and it can be out of date. `cents` is null when nothing has been entered.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ,
+    routes: ["GET /api/allowance", "POST /api/allowance/unlock"],
+    run: () => listAllowance(),
+  },
+  {
+    name: "set_allowance_balance",
+    title: "Set a kid's allowance balance",
+    description:
+      "Record what one kid has right now (read it off the Greenlight app), replacing the amount shown on " +
+      "Hearth. It does not move money or touch Greenlight. An empty `amount` clears the balance.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        member: { type: "string", description: "The kid's member key or first name, e.g. \"lincoln\"." },
+        amount: { type: "string", description: "Dollars, e.g. \"12\" or \"12.50\". Empty string clears it." },
+        note: { type: "string", description: "Optional short note shown with the amount, e.g. \"after birthday money\"." },
+      },
+      required: ["member", "amount"],
+      additionalProperties: false,
+    },
+    annotations: write(false, true),
+    routes: ["PUT /api/allowance"],
+    run: (args) => setBalanceTrusted({ member: args.member, amount: args.amount, note: args.note }),
   },
 ];

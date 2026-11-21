@@ -18,6 +18,18 @@ const nextConfig: NextConfig = {
   // Standalone output for the Railway Docker deploy.
   output: "standalone",
 
+  // The old per-app addresses still work (a bookmark, the wall's saved start
+  // page, a link in an old email): each goes to where that screen lives now.
+  async redirects() {
+    return [
+      { source: "/clean", destination: "/chores?view=clean", permanent: false },
+      { source: "/schedule", destination: "/school", permanent: false },
+      { source: "/meals", destination: "/kitchen", permanent: false },
+      { source: "/shopping", destination: "/kitchen?tab=shopping", permanent: false },
+      { source: "/lists", destination: "/", permanent: false },
+    ];
+  },
+
   async headers() {
     return [
       {

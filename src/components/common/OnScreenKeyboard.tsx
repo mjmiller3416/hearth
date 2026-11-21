@@ -5,11 +5,10 @@ import { ArrowBigUp, ChevronDown, Delete } from "lucide-react";
 
 // A themed, in-app on-screen keyboard (Phase 2 #7).
 //
-// The wall's fields never focus a native input, so the OS keyboard never
-// appears (and never shrinks the fixed-canvas Stage). Text fields render as
-// tappable displays that open THIS keyboard instead; it drives the value through
-// the callbacks below. Fully branded, touch-sized, no system chrome — the
-// seamless experience the household wants.
+// On the shared wall a field never focuses a native input, so the OS keyboard
+// never appears over half the display. Text fields render as tappable displays
+// that open THIS keyboard instead; it drives the value through the callbacks
+// below. Phones and laptops use their own keyboards (see useTouchWall).
 //
 // It owns only its transient shift/layer state; the field's value lives in the
 // parent (insert/backspace/done are the whole contract).
@@ -47,7 +46,7 @@ function Key({
       onClick={onClick}
       aria-label={ariaLabel}
       style={{ flexGrow: grow, flexBasis: 0 }}
-      className={`flex h-16 min-w-0 items-center justify-center rounded-xl text-title font-medium transition-colors active:scale-95 ${className}`}
+      className={`flex h-14 min-w-0 items-center justify-center rounded-xl text-title font-medium transition-colors active:scale-95 ${className}`}
     >
       {label}
     </button>
@@ -79,7 +78,7 @@ export function OnScreenKeyboard({
   const accent = "bg-ground-2 text-ink-soft";
 
   return (
-    <div className="flex flex-col gap-2 rounded-t-3xl border-t border-hairline bg-ground px-4 pb-5 pt-4 shadow-[0_-12px_30px_-18px_rgba(43,38,32,0.4)]">
+    <div className="flex flex-col gap-2 rounded-t-3xl border-t border-hairline bg-ground px-4 pb-5 pt-4 shadow-pop">
       {rows.map((row, i) => (
         <div key={i} className="flex justify-center gap-1.5">
           {/* Shift sits at the left of the last letter row. */}
@@ -88,7 +87,7 @@ export function OnScreenKeyboard({
               ariaLabel="Shift"
               grow={1.5}
               onClick={() => setShift((s) => !s)}
-              className={shift ? "bg-ink text-surface" : accent}
+              className={shift ? "bg-ink text-on-ink" : accent}
               label={<ArrowBigUp className="size-7" strokeWidth={2} aria-hidden />}
             />
           )}
@@ -133,7 +132,7 @@ export function OnScreenKeyboard({
           ariaLabel={doneLabel}
           grow={2}
           onClick={onDone}
-          className="bg-ink text-surface"
+          className="bg-ink text-on-ink"
           label={
             <span className="flex items-center gap-1.5 text-label font-semibold">
               <ChevronDown className="size-6" strokeWidth={2.25} aria-hidden />
