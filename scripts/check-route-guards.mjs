@@ -35,6 +35,9 @@ const OAUTH_GUARDED = {
     name: "requireHomeBaseToken",
     module: "@/lib/homeBase/auth",
   },
+  // The bulk photo importer on the home server: its own bearer token.
+  "src/app/api/photos/import/route.ts": { name: "requirePhotosToken", module: "@/lib/photos/auth" },
+  "src/app/api/photos/import/[id]/route.ts": { name: "requirePhotosToken", module: "@/lib/photos/auth" },
 };
 
 const PUBLIC = {

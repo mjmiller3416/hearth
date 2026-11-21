@@ -72,6 +72,12 @@ export const UNCOVERED_ROUTES: Record<string, string> = {
   "GET /api/weather/places": "The town search behind Settings → Weather: a display setting for the wall.",
   "GET /api/weather/place": "Which town the forecast is for: a display setting for the wall.",
   "PUT /api/weather/place": "Which town the forecast is for: a display setting for the wall.",
+  "GET /api/photos": "The family photos on Home are pictures for the screens, not something ChatGPT acts on.",
+  "POST /api/photos": "Adding a photo is done from a phone's own photo picker.",
+  "GET /api/photos/[id]": "A photo's image bytes, for the screens.",
+  "DELETE /api/photos/[id]": "Taking a photo down is done by the person looking at it.",
+  "GET /api/photos/import": "The bulk importer's own route (its token, not the wall's).",
+  "PUT /api/photos/import/[id]": "The bulk importer's own route (its token, not the wall's).",
   "POST /api/allowance/pin":
     "The parent PIN guards the wall's screens; the connector is already limited to a parent by its connect password.",
 };

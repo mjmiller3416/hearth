@@ -23,6 +23,7 @@ import type {
   ShoppingListPayload,
 } from "@/lib/spoon/types";
 import type { SchedulePayload } from "@/lib/tandem/types";
+import type { PhotosPayload } from "@/lib/photos/types";
 import type { WeatherPayload } from "@/lib/weather/types";
 
 // One hook per household source. Each owns its polling (on the stale-data
@@ -402,6 +403,15 @@ export function useWeather(): UpstreamState<WeatherPayload> {
   const mounted = useMounted();
   const fetcher = useCallback(() => getJson<WeatherPayload>("/api/weather"), []);
   return useUpstream<WeatherPayload>(fetcher, { enabled: mounted, intervalMs: WEATHER_REFRESH_MS });
+}
+
+// ── Family photos (kept by Hearth itself) ───────────────────────────────────
+
+/** The photos Home cycles through. The list changes rarely, so it polls slowly. */
+export function usePhotos(): UpstreamState<PhotosPayload> {
+  const mounted = useMounted();
+  const fetcher = useCallback(() => getJson<PhotosPayload>("/api/photos"), []);
+  return useUpstream<PhotosPayload>(fetcher, { enabled: mounted, intervalMs: 10 * 60_000 });
 }
 
 // ── Meal plan (Enchanted Spoon) ─────────────────────────────────────────────

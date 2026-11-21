@@ -5,8 +5,8 @@
 The family hub: the wall display in the living room and everyone's phone, from
 one address. A client, not a store: it reads and writes Google Calendar, Tada!,
 Tandem and Enchanted Spoon through its own route handlers. The only things it
-stores itself are the family colors, the town the weather is for, and the
-parent-entered allowance amounts (two small files, see Storage). Weather comes
+stores itself are the family colors, the town the weather is for, the
+parent-entered allowance amounts and the family photos Home shows (see Storage). Weather comes
 from Open-Meteo (free, no key). README.md is the operator guide;
 `docs/app-spec.md` holds the decisions (D1–D13) and phase status;
 `docs/enchanted-spoon-integration.md` and `docs/tada-integration-requirements.md`
@@ -152,7 +152,7 @@ are gone; don't reintroduce them. Spec §7 has the direction.
 - Not yet seen on the real wall hardware: the drifting lights and
   `backdrop-filter` are the things to check there first if it feels slow.
 
-## Storage (the two files Hearth keeps)
+## Storage (what Hearth keeps itself)
 
 - `src/lib/settings/dataDir.ts` resolves the directory: `HEARTH_DATA_DIR` (a
   Railway volume at `/data`), else `./.hearth-data` (replaced on every deploy).
@@ -162,6 +162,25 @@ are gone; don't reintroduce them. Spec §7 has the direction.
 - The container starts as root only so `scripts/docker-entrypoint.sh` can chown
   the volume, then drops to the `nextjs` user with su-exec. Keep it that way
   rather than setting `RAILWAY_RUN_UID=0`.
+
+## Family photos
+
+- `src/lib/photos/`: one resized JPEG per photo in `<data dir>/photos/` plus
+  `photos.json` (the list, and the ids of photos someone removed). At most
+  1000 photos, 4 MB each; in practice about 250 KB each.
+- A paired device lists, views, adds (`POST /api/photos`, the browser shrinks
+  the picture to 1600px first; Settings → Photos) and removes (`DELETE`, the
+  "Don't show" control on Home). A removed id is remembered so the importer
+  doesn't put it back; a person adding it again does.
+- The bulk importer is `scripts/import-photos.mjs` (Windows Node, uses the
+  `sharp` already in node_modules). It has its own bearer token, digest in
+  `HEARTH_PHOTOS_TOKEN_SHA256` (unset = the import routes 404), guarded by
+  `requirePhotosToken`; that token can list ids and add, nothing else. A
+  photo's id is a hash of the resized bytes, so re-running adds nothing new.
+- Home: `PhotoFrame` replaces the sky behind the clock when there is at least
+  one photo, and dinner becomes a short banner under it. Photos that don't
+  match the frame's shape are shown whole at the bottom over a blurred copy.
+- Photos are never sent to ChatGPT (no MCP tool) or any outside service.
 
 ## Weather
 

@@ -18,7 +18,9 @@
 >   personal screens; the idle return that replaced the timed view schedule).
 > - **Design direction:** §7 (the token system and the evening theme; replaced
 >   the same evening by the living-screen direction, see §7).
-> - **Storage:** D1 and the new D13 (parent-entered allowance balances).
+> - **Storage:** D1 and the new D13 (parent-entered allowance balances). Since
+>   then the same volume also holds the weather town and the family photos
+>   Home shows: display content, nothing Hearth computes on.
 >
 > The ownership boundary did not move: Hearth still computes and decides
 > nothing. D4 (Maryann's surface shows one task, never the backlog) holds

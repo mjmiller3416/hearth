@@ -31,7 +31,9 @@ const DEVICE = "test-device-token";
 // Hearth's own files (colors, allowance) go to a throwaway directory, so the
 // suite never touches a developer's local .hearth-data.
 const DATA_DIR = baseArg ? null : mkdtempSync(join(tmpdir(), "hearth-test-"));
+const PHOTOS_TOKEN = "test-photos-import-token";
 const TEST_ENV = {
+  HEARTH_PHOTOS_TOKEN_SHA256: createHash("sha256").update(PHOTOS_TOKEN, "utf8").digest("hex"),
   ...(DATA_DIR ? { HEARTH_DATA_DIR: DATA_DIR } : {}),
   HEARTH_PUBLIC_URL: BASE,
   HEARTH_MCP_SECRET: SECRET,
@@ -525,6 +527,32 @@ async function run() {
     check("changing a color keeps the weather place", colorsAfter.status === 200 && placeKept.place?.name === "Testville");
     const wxNoCookie = await req("/api/weather");
     check("weather needs a paired device", wxNoCookie.status === 401 || wxNoCookie.status === 403);
+    // Family photos: a paired device adds, sees and removes; the importer has its own token.
+    const jpeg = (fill) => new Uint8Array([0xff, 0xd8, 0xff, 0xe0, ...new Array(64).fill(fill)]);
+    const addPhoto = await req("/api/photos", { method: "POST", headers: { ...cookie, "content-type": "image/jpeg", "x-photo-taken": "2024-02-25T15:51:56Z" }, body: jpeg(1) });
+    const addedPhoto = await addPhoto.json();
+    check("a paired device can add a photo", addPhoto.status === 201 && /^[0-9a-f]{32}$/.test(addedPhoto.id ?? ""));
+    const listed = await (await req("/api/photos", { headers: cookie })).json();
+    check("the photo is listed with when it was taken", listed.photos?.length === 1 && listed.photos[0].takenAt === "2024-02-25T15:51:56.000Z");
+    const img = await req(`/api/photos/${addedPhoto.id}`, { headers: cookie });
+    check("the picture is served as a JPEG", img.status === 200 && img.headers.get("content-type") === "image/jpeg");
+    check("a photo needs a paired device", (await req(`/api/photos/${addedPhoto.id}`)).status === 401 && (await req("/api/photos")).status === 401);
+    const notJpeg = await req("/api/photos", { method: "POST", headers: cookie, body: new Uint8Array([1, 2, 3, 4, 5]) });
+    check("a non-JPEG upload is refused", notJpeg.status === 415);
+    const dropped = await req(`/api/photos/${addedPhoto.id}`, { method: "DELETE", headers: cookie });
+    const afterDrop = await (await req("/api/photos", { headers: cookie })).json();
+    check("removing a photo takes it off the list", dropped.status === 204 && afterDrop.photos?.length === 0);
+    const importAuth = { authorization: `Bearer ${PHOTOS_TOKEN}` };
+    check("the importer needs its own token (the device cookie isn't one)", (await req("/api/photos/import", { headers: cookie })).status === 401);
+    const impState = await (await req("/api/photos/import", { headers: importAuth })).json();
+    check("the importer is told which photos were removed", impState.removed?.includes(addedPhoto.id) && impState.have?.length === 0);
+    const reimport = await (await req(`/api/photos/import/${addedPhoto.id}`, { method: "PUT", headers: importAuth, body: jpeg(1) })).json();
+    check("the importer can't put a removed photo back", reimport.status === "removed");
+    const newId = "ab".repeat(16);
+    const imported = await req(`/api/photos/import/${newId}`, { method: "PUT", headers: importAuth, body: jpeg(2) });
+    const again = await (await req(`/api/photos/import/${newId}`, { method: "PUT", headers: importAuth, body: jpeg(2) })).json();
+    check("the importer adds a photo once", imported.status === 201 && again.status === "exists");
+    check("the import token opens nothing else", (await req("/api/photos", { headers: importAuth })).status === 401);
     const own = await (await req("/api/allowance?viewer=lincoln", { headers: cookie })).json();
     check("wall: a kid's lens reads their own balance", own.balance?.cents === 1250 && own.balance.source === "manual");
     const sibling = await (await req("/api/allowance?viewer=ollie", { headers: cookie })).json();

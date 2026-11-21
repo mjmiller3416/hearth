@@ -29,6 +29,13 @@ school day, their chores, and for a kid their allowance. Nobody selected is the
 whole family's day. It is attribution, not a login (spec §6.3). A phone
 remembers its lens, so a kid's phone opens on that kid's day.
 
+**Family photos.** Home shows one family photo behind the clock, changing every
+45 seconds. Add them from a phone or laptop in Settings → Photos (they are shrunk
+before they are sent), or in bulk from folders on the home server with
+`node scripts/import-photos.mjs` (see the top of that script). Tap the photo on
+Home for Next and "Don't show". Photos are kept on Hearth's own volume and only
+paired screens can load them.
+
 **Weather.** Choose the town once in Settings → Weather (type a town or ZIP
 code and pick the match). Home then shows the conditions under the clock, and
 the hours ahead in a tile once the school day is over. The forecast comes from

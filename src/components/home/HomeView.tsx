@@ -21,6 +21,7 @@ import { HeaderCountdown } from "@/components/layout/HeaderCountdown";
 import { MealCardPanel, MealMeta } from "@/components/meals/MealCardPanel";
 import { CookedButton } from "@/components/meals/MealTile";
 import { MealImage } from "@/components/meals/mealVisuals";
+import { PhotoFrame } from "@/components/photos/PhotoFrame";
 import { SchoolDay } from "@/components/schedule/SchoolDay";
 import { AddItemBar, ShoppingItems } from "@/components/shopping/ShoppingPanel";
 import { KidChoreList } from "@/components/tasks/ChoreList";
@@ -33,6 +34,7 @@ import {
   useCleanSession,
   useKidsChores,
   useMealPlan,
+  usePhotos,
   useSchoolWeek,
   useShoppingList,
   useWeather,
@@ -61,8 +63,9 @@ import { isoDate, mondayOf, toMinutes } from "@/lib/tandem/week";
 // Home: the screen the wall rests on, and where every phone opens.
 //
 // It is laid out like a picture frame rather than a dashboard. On a wide
-// screen the left third is the sky itself: the clock, the date, and tonight's
-// dinner as one big picture. The rest is a handful of tiles, each its own
+// screen the left third is the clock over a family photo that changes slowly,
+// with tonight's dinner beneath it (with no photos yet, the clock sits on the
+// sky and dinner is the big picture). The rest is a handful of tiles, each its own
 // color: the calendar (with the month beside it), the kids' chores, school,
 // the cleaning session, the weather and the shopping list. Everything is live and the
 // everyday actions are right there: check off a chore, finish a cleaning task,
@@ -105,6 +108,7 @@ export function HomeView() {
   const plan = useMealPlan();
   const list = useShoppingList();
   const weather = useWeather();
+  const photos = usePhotos();
 
   const events = eventsForLens(calendar.events, lens?.key ?? null);
   const sheets = useEventSheets({ calendar, events, now: clock });
@@ -382,23 +386,57 @@ export function HomeView() {
 
   const greeting = !clock ? "Hello" : lens ? `${lens.name}'s day` : greetingFor(now);
 
+  // ── Family photos: the picture behind the clock ────────────────────────────
+  const photoList = photos.data?.photos ?? [];
+  const hasPhotos = photoList.length > 0;
+  const refetchPhotos = photos.refetch;
+  const removePhoto = (id: string) => {
+    void fetch(`/api/photos/${id}`, { method: "DELETE" }).finally(() => void refetchPhotos());
+  };
+
+  // The greeting, the time, the date and the weather: on the sky, or laid over
+  // the photo.
+  const clockface = (
+    <>
+      <p className="font-display text-lead font-medium text-fg-soft wide:text-big">{greeting}</p>
+      <BigClock instant={instant} timeZone={timeZone} />
+      <p className="hidden font-display text-big font-light text-fg wide:block">
+        {clock
+          ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+          : " "}
+      </p>
+      <WeatherLine weather={weather.data} className="mt-2 wide:mt-3" />
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-4 px-4 pb-4 wide:h-full wide:flex-row wide:gap-6 wide:px-7 wide:pb-1 wide:pt-6">
-      {/* The sky: clock, date and tonight's dinner. */}
+      {/* The left side: the clock over a family photo (or over the sky when
+          there are none yet), and tonight's dinner. */}
       <div className="relative flex flex-col gap-4 wide:min-h-0 wide:w-[31%] wide:shrink-0 wide:gap-5">
-        <Orb hour={clock ? now.getHours() + now.getMinutes() / 60 : 12} />
-        <div className="relative px-1 pt-1 wide:px-2 wide:pt-0">
-          <p className="font-display text-lead font-medium text-fg-soft wide:text-big">{greeting}</p>
-          <BigClock instant={instant} timeZone={timeZone} />
-          <p className="hidden font-display text-big font-light text-fg wide:block">
-            {clock
-              ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
-              : " "}
-          </p>
-          <WeatherLine weather={weather.data} className="mt-2 wide:mt-3" />
-          <HeaderCountdown className="mt-3 wide:hidden" />
-        </div>
-        <DinnerFeature plan={plan} now={now} showLater={!isKid} onOpen={setOpenMeal} />
+        {hasPhotos ? (
+          <>
+            <PhotoFrame
+              photos={photoList}
+              daySeed={todayIso}
+              onRemove={removePhoto}
+              className="min-h-[25rem] wide:min-h-0 wide:flex-1"
+            >
+              {clockface}
+            </PhotoFrame>
+            <HeaderCountdown className="wide:hidden" />
+            <DinnerFeature plan={plan} now={now} showLater={false} onOpen={setOpenMeal} compact />
+          </>
+        ) : (
+          <>
+            <Orb hour={clock ? now.getHours() + now.getMinutes() / 60 : 12} />
+            <div className="relative px-1 pt-1 wide:px-2 wide:pt-0">
+              {clockface}
+              <HeaderCountdown className="mt-3 wide:hidden" />
+            </div>
+            <DinnerFeature plan={plan} now={now} showLater={!isKid} onOpen={setOpenMeal} />
+          </>
+        )}
       </div>
 
       {/* The tiles. */}
@@ -495,18 +533,23 @@ function DinnerFeature({
   now,
   showLater,
   onOpen,
+  compact = false,
 }: {
   plan: MealPlan;
   now: Date;
   /** Name the next couple of dinners too (for whoever plans around them). */
   showLater: boolean;
   onOpen: (meal: PlannedMeal) => void;
+  /** A short banner (under the family photo) instead of the big picture. */
+  compact?: boolean;
 }) {
   const tonight = tonightsMeal(plan.meals, now);
   const later = showLater
     ? plan.meals.filter((m) => m !== tonight && m.scheduledDate !== null).slice(0, 2)
     : [];
-  const frame = "on-color tile relative min-h-[15rem] wide:min-h-0 wide:flex-1";
+  const frame = compact
+    ? "on-color tile relative min-h-[11rem] wide:h-[12.5rem] wide:min-h-0 wide:shrink-0"
+    : "on-color tile relative min-h-[15rem] wide:min-h-0 wide:flex-1";
 
   // Loading, not connected, unreachable or nothing planned: a plain leaf tile.
   if (plan.state.failed || plan.state.isLoading || !plan.configured || !tonight) {
@@ -543,7 +586,11 @@ function DinnerFeature({
           id={tonight.mealId}
           name={tonight.name}
           imageUrl={tonight.imageUrl}
-          iconClassName="size-[7rem] -translate-y-[38%] translate-x-[85%] opacity-80 wide:size-[13rem] wide:-translate-y-[22%] wide:translate-x-0 wide:opacity-100"
+          iconClassName={
+            compact
+              ? "size-[6.5rem] -translate-y-[20%] translate-x-[110%] opacity-80 wide:translate-x-[150%]"
+              : "size-[7rem] -translate-y-[38%] translate-x-[85%] opacity-80 wide:size-[13rem] wide:-translate-y-[22%] wide:translate-x-0 wide:opacity-100"
+          }
         />
         <span
           className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 via-45% to-transparent"
@@ -557,11 +604,19 @@ function DinnerFeature({
           : `Dinner · ${planDay(tonight.scheduledDate, now).label}`}
       </span>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col gap-2.5 p-4 wide:p-6">
-        <h2 className="text-balance font-display text-huge font-medium leading-[1.05] text-white">
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-0 flex flex-col p-4 ${
+          compact ? "gap-1.5 wide:p-5" : "gap-2.5 wide:p-6"
+        }`}
+      >
+        <h2
+          className={`font-display font-medium text-white ${
+            compact ? "line-clamp-1 text-big leading-tight" : "text-balance text-huge leading-[1.05]"
+          }`}
+        >
           {tonight.name}
         </h2>
-        <MealMeta totalTime={tonight.totalTime} sideDishCount={tonight.sideDishCount} />
+        {!compact && <MealMeta totalTime={tonight.totalTime} sideDishCount={tonight.sideDishCount} />}
         {later.length > 0 && (
           <p className="truncate text-small text-fg-soft">
             Then{" "}
