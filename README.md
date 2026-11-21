@@ -372,9 +372,10 @@ defaults (`--color-<slug>`), driven by `MEMBERS` and customizable in Settings
 ## Deploy (Railway)
 
 One service in the existing Railway project, pointed at this repo,
-single-branch auto-deploy. Docker builder (`railway.json` → `Dockerfile`),
-health check at `/health`. Set the environment variables above as service
-variables. No database. A volume mounted at `HEARTH_DATA_DIR` (`/data`) holds
+single-branch auto-deploy. It builds from the `Dockerfile` and health-checks
+`/health`; both are set in the Railway service's settings (there is no
+`railway.json` any more: Railway stops reading config files on 2026-12-01). Set
+the environment variables above as service variables. No database. A volume mounted at `HEARTH_DATA_DIR` (`/data`) holds
 Hearth's own two files (colors and allowance). Railway mounts volumes owned by
 root, so the container's entrypoint (`scripts/docker-entrypoint.sh`) hands that
 directory to the app user and then drops to it; the server never runs as root.

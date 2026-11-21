@@ -157,11 +157,14 @@ Run from PowerShell, or from WSL as
   `staging`, push `staging`, then `git push origin staging:main`. `main` has old
   PR merge commits, so merge `origin/main` into `staging` first when it's ahead.
 - Railway project `hearth`, one service, production only, deploys `main`. The
-  Dockerfile builder and `/health` check come from `railway.json` (the dashboard
-  shows Railpack and no health check), so they need moving before Railway stops
-  reading config-as-code on 2026-12-01. The entrypoint and the volume
-  permissions depend on the Dockerfile build: a Railpack build would run without
-  the chown step.
+  Dockerfile builder, the `/health` check (30 s) and the restart policy live in
+  the Railway SERVICE SETTINGS, not in the repo: `railway.json` was removed on
+  2026-11-20, ahead of Railway's config-as-code cutoff (2026-12-01). Change them
+  in the dashboard or with the Railway MCP `update-service`. The entrypoint and
+  the volume permissions depend on the Dockerfile build: if a build log ever
+  shows Railpack instead of the Dockerfile stages, the builder setting was lost.
+- The service has a volume, so each deploy has a few seconds of downtime (the
+  old container stops before the new one starts).
 - Enchanted Spoon's side of the integration (`backend/app/api/hearth.py`) lives in
   the enchanted-spoon repo and ships through that repo's own `/git` workflow;
   its rules and hooks don't load from here.
