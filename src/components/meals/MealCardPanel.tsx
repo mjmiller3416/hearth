@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { CardRecipe, Ingredient, MealCard, MealCardPayload } from "@/lib/spoon/types";
 import { Button, IconButton } from "@/components/ui/Button";
-import { EmptyState, Loading } from "@/components/ui/Card";
+import { EmptyState, Loading } from "@/components/ui/Tile";
 import { Sheet, SheetBody, SheetFooter } from "@/components/ui/Sheet";
 import { FoodGlyph, mealTone, type MealTone } from "./mealVisuals";
 
@@ -64,8 +64,8 @@ function groupIngredients(ingredients: Ingredient[]): Array<{ category: string; 
 
 function SectionHeader({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <h4 className="mb-3 flex items-center gap-2.5 text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
-      <Icon className="size-5 text-ink-faint" strokeWidth={2} aria-hidden />
+    <h4 className="mb-3 flex items-center gap-2.5 text-small font-semibold uppercase tracking-[0.08em] text-fg-soft">
+      <Icon className="size-5 text-fg-faint" strokeWidth={2} aria-hidden />
       {label}
     </h4>
   );
@@ -83,10 +83,10 @@ function Stats({ recipe }: { recipe: CardRecipe }) {
   return (
     <dl className="mb-5 flex flex-wrap gap-2">
       {stats.map((s) => (
-        <div key={s.label} className="flex items-center gap-2 rounded-full bg-surface-2 px-3.5 py-2 ring-1 ring-inset ring-hairline">
-          <s.icon className="size-4 text-ink-faint" strokeWidth={2} aria-hidden />
-          <dt className="text-stamp text-ink-faint">{s.label}</dt>
-          <dd className="text-label font-semibold text-ink">{s.value}</dd>
+        <div key={s.label} className="flex items-center gap-2 rounded-full bg-fill px-3.5 py-2">
+          <s.icon className="size-4 text-fg-faint" strokeWidth={2} aria-hidden />
+          <dt className="text-tiny text-fg-faint">{s.label}</dt>
+          <dd className="text-small font-semibold text-fg">{s.value}</dd>
         </div>
       ))}
     </dl>
@@ -104,11 +104,11 @@ function RecipeBlock({
 }) {
   const groups = groupIngredients(recipe.ingredients);
   return (
-    <section className={isFirst ? "" : "border-t border-hairline pt-7"}>
+    <section className={isFirst ? "" : "border-t border-line pt-7"}>
       <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-        <h3 className="font-display text-title leading-tight text-ink">{recipe.name}</h3>
+        <h3 className="font-display text-big font-medium leading-tight text-fg">{recipe.name}</h3>
         {recipe.role === "side" && (
-          <span className="rounded-full bg-surface-2 px-3 py-1 text-stamp font-semibold uppercase tracking-wide text-ink-soft ring-1 ring-inset ring-hairline">
+          <span className="rounded-full bg-fill px-3 py-1 text-tiny font-semibold uppercase tracking-wide text-fg-soft">
             Side
           </span>
         )}
@@ -117,26 +117,26 @@ function RecipeBlock({
       <Stats recipe={recipe} />
 
       {recipe.description && (
-        <p className="mb-5 text-body leading-relaxed text-ink-soft">{recipe.description}</p>
+        <p className="mb-5 text-body leading-relaxed text-fg-soft">{recipe.description}</p>
       )}
 
       <div className="grid gap-8 wide:grid-cols-[minmax(0,5fr)_minmax(0,8fr)]">
         <div>
           <SectionHeader icon={BookOpen} label="Ingredients" />
           {recipe.ingredients.length === 0 ? (
-            <p className="text-body text-ink-faint">No ingredients listed.</p>
+            <p className="text-body text-fg-faint">No ingredients listed.</p>
           ) : (
             <div className="flex flex-col gap-4">
               {groups.map((group) => (
                 <div key={group.category}>
-                  <p className="mb-1.5 text-stamp font-semibold uppercase tracking-[0.1em] text-ink-faint">
+                  <p className="mb-1.5 text-tiny font-semibold uppercase tracking-[0.1em] text-fg-faint">
                     {group.category}
                   </p>
                   <ul className="flex flex-col gap-1.5">
                     {group.items.map((ing, i) => {
                       const measure = formatQuantity(ing.quantity, ing.unit).trim();
                       return (
-                        <li key={`${ing.name}-${i}`} className="flex items-baseline gap-2.5 text-body text-ink">
+                        <li key={`${ing.name}-${i}`} className="flex items-baseline gap-2.5 text-body text-fg">
                           <span
                             className="relative top-[-0.15em] size-1.5 shrink-0 rounded-full"
                             style={{ background: tone.ink }}
@@ -159,13 +159,13 @@ function RecipeBlock({
         <div>
           <SectionHeader icon={Utensils} label="Directions" />
           {recipe.steps.length === 0 ? (
-            <p className="text-body text-ink-faint">No directions listed.</p>
+            <p className="text-body text-fg-faint">No directions listed.</p>
           ) : (
             <ol className="flex flex-col gap-3.5">
               {recipe.steps.map((step, i) => (
-                <li key={i} className="flex gap-3.5 text-body leading-relaxed text-ink">
+                <li key={i} className="flex gap-3.5 text-body leading-relaxed text-fg">
                   <span
-                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-ink font-display text-label leading-none text-on-ink"
+                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-accent font-display text-small leading-none text-on-accent"
                     aria-hidden
                   >
                     {i + 1}
@@ -176,7 +176,7 @@ function RecipeBlock({
             </ol>
           )}
           {recipe.notes && (
-            <p className="mt-5 rounded-2xl bg-surface-2 p-4 text-body text-ink-soft ring-1 ring-inset ring-hairline">
+            <p className="mt-5 rounded-2xl bg-fill p-4 text-body text-fg-soft">
               {recipe.notes}
             </p>
           )}
@@ -240,22 +240,21 @@ export function MealCardPanel({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={heroImage} alt="" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-            <h2 className="absolute inset-x-0 bottom-0 px-5 pb-4 font-display text-display leading-tight text-white wide:px-7">
+            <h2 className="absolute inset-x-0 bottom-0 px-5 pb-4 font-display text-big font-medium leading-tight text-white wide:px-7">
               {title}
             </h2>
           </>
         ) : (
-          <div className="relative h-full w-full overflow-hidden" style={{ background: tone.gradient }}>
+          <div
+            className="relative h-full w-full overflow-hidden"
+            style={{ backgroundColor: tone.bg, backgroundImage: tone.gradient }}
+          >
             <FoodGlyph
               name={title}
-              className="pointer-events-none absolute -bottom-8 -right-4 size-48"
+              className="pointer-events-none absolute -bottom-8 -right-4 size-48 text-white opacity-25"
               strokeWidth={1.25}
-              style={{ color: tone.ink, opacity: 0.2 }}
             />
-            <h2
-              className="absolute inset-x-0 bottom-0 px-5 pb-4 pr-16 font-display text-display leading-tight wide:px-7"
-              style={{ color: tone.ink }}
-            >
+            <h2 className="absolute inset-x-0 bottom-0 px-5 pb-4 pr-16 font-display text-big font-medium leading-tight text-white wide:px-7">
               {title}
             </h2>
           </div>
@@ -264,7 +263,7 @@ export function MealCardPanel({
           label="Close"
           onClick={onClose}
           variant="secondary"
-          className="absolute right-3 top-3 bg-surface shadow-card"
+          className="absolute right-3 top-3 !bg-white !text-night shadow-float"
         >
           <X className="size-6" strokeWidth={2} aria-hidden />
         </IconButton>
@@ -294,7 +293,7 @@ export function MealCardPanel({
 
       {onCooked && (
         <SheetFooter>
-          <span className="hidden flex-1 text-stamp text-ink-faint wide:block">
+          <span className="hidden flex-1 text-tiny text-fg-faint wide:block">
             Cooked meals leave the plan. Bring one back in Enchanted Spoon.
           </span>
           <Button variant="primary" className="flex-1 wide:flex-none" onClick={onCooked}>
@@ -322,10 +321,10 @@ export function MealMeta({
   }
   if (items.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-label text-ink-soft">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-fg-soft">
       {items.map(({ icon: Icon, text }) => (
         <span key={text} className="flex items-center gap-1.5">
-          <Icon className="size-4 text-ink-faint" strokeWidth={2} aria-hidden />
+          <Icon className="size-4" strokeWidth={2.25} aria-hidden />
           {text}
         </span>
       ))}

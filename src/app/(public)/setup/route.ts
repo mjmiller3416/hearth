@@ -67,14 +67,14 @@ function unauthorizedPage(configured: boolean): string {
       html, body { margin: 0; height: 100%; }
       body {
         display: flex; align-items: center; justify-content: center;
-        background: #f4efe4; color: #2b2620;
+        background: #2f7ff0 linear-gradient(160deg, #35b0f5 0%, #2f7ff0 46%, #4a55e2 100%); color: #ffffff;
         font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       }
       .card { max-width: 34rem; padding: 2.5rem; text-align: center; }
       h1 { font-size: 2rem; margin: 0 0 0.75rem; font-weight: 600; }
-      p { font-size: 1.15rem; line-height: 1.6; color: #6f675a; margin: 0; }
+      p { font-size: 1.15rem; line-height: 1.6; color: rgba(255,255,255,.85); margin: 0; }
       code {
-        background: #efe8d9; padding: 0.1em 0.35em; border-radius: 0.3rem;
+        background: rgba(255,255,255,.2); padding: 0.1em 0.35em; border-radius: 0.3rem;
         font-size: 0.95em;
       }
     </style>

@@ -6,7 +6,7 @@ import { useHousehold } from "@/components/app/Household";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Loading } from "@/components/ui/Card";
+import { Loading } from "@/components/ui/Tile";
 import { Keypad, PinDots } from "@/components/ui/Keypad";
 import { Sheet, SheetBody, SheetFooter, SheetHeader } from "@/components/ui/Sheet";
 import { useTouchWall } from "@/hooks/useTouchWall";
@@ -78,9 +78,9 @@ export function AllowanceSettings() {
 
   if (failed) {
     return (
-      <p className="text-body text-ink-faint">
+      <p className="text-body text-fg-faint">
         Can&rsquo;t load allowance right now.{" "}
-        <button type="button" className="font-semibold text-ink underline" onClick={() => void loadStatus()}>
+        <button type="button" className="font-semibold text-fg underline" onClick={() => void loadStatus()}>
           Try again
         </button>
       </p>
@@ -92,8 +92,8 @@ export function AllowanceSettings() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="flex items-start gap-2.5 text-label text-ink-soft">
-        <Info className="mt-0.5 size-4 shrink-0 text-ink-faint" strokeWidth={2.25} aria-hidden />
+      <p className="flex items-start gap-2.5 text-small text-fg-soft">
+        <Info className="mt-0.5 size-4 shrink-0 text-fg-faint" strokeWidth={2.25} aria-hidden />
         <span>
           Greenlight has no way for a family to connect another app to its balances, so
           these are amounts you type in after checking the Greenlight app. Each kid sees
@@ -102,7 +102,7 @@ export function AllowanceSettings() {
       </p>
 
       {!durable && (
-        <p className="flex items-start gap-2.5 rounded-2xl bg-bad-soft px-4 py-3 text-label text-bad">
+        <p className="flex items-start gap-2.5 rounded-2xl bg-bad-soft px-4 py-3 text-small text-bad">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" strokeWidth={2.25} aria-hidden />
           <span>
             Storage isn&rsquo;t set up on the server yet, so amounts and the PIN reset whenever
@@ -112,16 +112,16 @@ export function AllowanceSettings() {
       )}
 
       {!status.pinSet ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 ring-1 ring-inset ring-hairline">
-          <span className="text-body text-ink">Start by choosing a parent PIN.</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-fill px-4 py-3 ring-1 ring-inset ring-line">
+          <span className="text-body text-fg">Start by choosing a parent PIN.</span>
           <Button variant="primary" onClick={() => setAsking("create")}>
             <Lock className="size-4" strokeWidth={2.5} aria-hidden />
             Set a PIN
           </Button>
         </div>
       ) : !data ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3 ring-1 ring-inset ring-hairline">
-          <span className="text-body text-ink">Balances are locked.</span>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-fill px-4 py-3 ring-1 ring-inset ring-line">
+          <span className="text-body text-fg">Balances are locked.</span>
           <Button variant="primary" onClick={() => setAsking("unlock")}>
             <LockOpen className="size-4" strokeWidth={2.5} aria-hidden />
             Enter parent PIN
@@ -131,7 +131,7 @@ export function AllowanceSettings() {
         <>
           <ul className="flex flex-col gap-2">
             {data.balances.length === 0 && (
-              <li className="text-body text-ink-faint">No kids are set up on Hearth.</li>
+              <li className="text-body text-fg-faint">No kids are set up on Hearth.</li>
             )}
             {data.balances.map((b) => (
               <BalanceRow key={b.memberKey} balance={b} onEdit={() => setEditing(b)} />
@@ -147,7 +147,7 @@ export function AllowanceSettings() {
             </Button>
           </div>
           {status.pinFromEnv && (
-            <p className="text-stamp text-ink-faint">
+            <p className="text-tiny text-fg-faint">
               The PIN is fixed on the server right now (HEARTH_PARENT_PIN). One you save here
               takes over when that is removed.
             </p>
@@ -190,18 +190,18 @@ function BalanceRow({ balance, onEdit }: { balance: AllowanceBalance; onEdit: ()
   const { byKey } = useHousehold();
   const member = byKey(balance.memberKey);
   return (
-    <li className="flex items-center gap-3.5 rounded-2xl bg-surface-2 px-4 py-3 ring-1 ring-inset ring-hairline">
+    <li className="flex items-center gap-3.5 rounded-2xl bg-fill px-4 py-3 ring-1 ring-inset ring-line">
       <Avatar name={balance.name} color={member?.color ?? "neutral"} size="md" />
       <span className="min-w-0 flex-1">
-        <span className="block text-body text-ink">{balance.name}</span>
-        <span className="flex items-center gap-1.5 text-stamp text-ink-faint">
+        <span className="block text-body text-fg">{balance.name}</span>
+        <span className="flex items-center gap-1.5 text-tiny text-fg-faint">
           <PenLine className="size-3.5 shrink-0" strokeWidth={2.25} aria-hidden />
           {balance.asOf
             ? `Entered ${new Date(balance.asOf).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone })}${balance.note ? ` · ${balance.note}` : ""}`
             : "Nothing entered yet"}
         </span>
       </span>
-      <span className="font-display text-title tabular-nums text-ink">
+      <span className="font-display text-lead tabular-nums text-fg">
         {balance.cents == null ? "—" : formatCents(balance.cents)}
       </span>
       <Button size="sm" onClick={onEdit} aria-label={`Update ${balance.name}'s balance`}>
@@ -289,7 +289,7 @@ function PinSheet({
       <SheetBody className="flex flex-col gap-5">
         <PinDots length={value.length} max={PIN_MAX} />
         {error && (
-          <p role="alert" className="text-center text-label text-bad">
+          <p role="alert" className="text-center text-small text-bad">
             {error}
           </p>
         )}
@@ -350,7 +350,7 @@ function AmountSheet({
       <SheetBody className="flex flex-col gap-4">
         {isWall ? (
           <>
-            <p className="text-center font-display text-date leading-none tabular-nums text-ink">
+            <p className="text-center font-display text-giant leading-none tabular-nums text-fg">
               ${amount || "0"}
             </p>
             <Keypad value={amount} onChange={setAmount} maxLength={9} decimal onEnter={() => void save(amount)} />
@@ -358,9 +358,9 @@ function AmountSheet({
         ) : (
           <>
             <label className="flex flex-col gap-1.5">
-              <span className="text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">Amount</span>
-              <span className="flex min-h-14 items-center gap-1 rounded-2xl bg-surface-2 px-4 ring-1 ring-inset ring-hairline focus-within:ring-2 focus-within:ring-ink">
-                <span className="font-display text-display text-ink-faint">$</span>
+              <span className="text-small font-semibold uppercase tracking-[0.08em] text-fg-soft">Amount</span>
+              <span className="flex min-h-14 items-center gap-1 rounded-2xl bg-fill px-4 ring-1 ring-inset ring-line focus-within:ring-2 focus-within:ring-accent">
+                <span className="font-display text-big text-fg-faint">$</span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -372,12 +372,12 @@ function AmountSheet({
                   }}
                   placeholder="0.00"
                   aria-label="Amount in dollars"
-                  className="min-w-0 flex-1 bg-transparent font-display text-display tabular-nums text-ink outline-none placeholder:text-ink-faint"
+                  className="min-w-0 flex-1 bg-transparent font-display text-big tabular-nums text-fg outline-none placeholder:text-fg-faint"
                 />
               </span>
             </label>
             <label className="flex flex-col gap-1.5">
-              <span className="text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
+              <span className="text-small font-semibold uppercase tracking-[0.08em] text-fg-soft">
                 Note (optional)
               </span>
               <input
@@ -386,13 +386,13 @@ function AmountSheet({
                 maxLength={NOTE_MAX}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. after birthday money"
-                className="min-h-12 rounded-2xl bg-surface-2 px-4 text-body text-ink outline-none ring-1 ring-inset ring-hairline placeholder:text-ink-faint focus:ring-2 focus:ring-ink"
+                className="min-h-12 rounded-2xl bg-fill px-4 text-body text-fg outline-none ring-1 ring-inset ring-line placeholder:text-fg-faint focus:ring-2 focus:ring-accent"
               />
             </label>
           </>
         )}
         {error && (
-          <p role="alert" className="text-label text-bad">
+          <p role="alert" className="text-small text-bad">
             {error}
           </p>
         )}

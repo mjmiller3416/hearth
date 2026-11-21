@@ -61,7 +61,7 @@ export function Keypad({
             type="button"
             onClick={() => press(key)}
             aria-label={key === "back" ? "Delete" : key === "." ? "Decimal point" : key}
-            className="flex h-14 items-center justify-center rounded-2xl bg-surface-2 font-display text-display leading-none text-ink ring-1 ring-inset ring-hairline active:scale-95 active:bg-ground-2"
+            className="flex h-14 items-center justify-center rounded-2xl bg-fill font-display text-big leading-none text-fg active:scale-95 active:bg-fill-2"
           >
             {key === "back" ? <Delete className="size-6" strokeWidth={2} aria-hidden /> : key}
           </button>
@@ -78,7 +78,7 @@ export function PinDots({ length, max }: { length: number; max: number }) {
       {Array.from({ length: Math.max(length, 4) }, (_, i) => (
         <span
           key={i}
-          className={`size-3.5 rounded-full ${i < length ? "bg-ink" : "bg-hairline-strong"}`}
+          className={`size-3.5 rounded-full ${i < length ? "bg-accent" : "bg-line-strong"}`}
         />
       )).slice(0, max)}
     </div>

@@ -7,7 +7,7 @@ import { MealCardPanel } from "@/components/meals/MealCardPanel";
 import { MealTile } from "@/components/meals/MealTile";
 import { AddItemBar, ShoppingItems } from "@/components/shopping/ShoppingPanel";
 import { Segmented } from "@/components/ui/Button";
-import { AsOf, Card, EmptyState, SourceGate } from "@/components/ui/Card";
+import { AsOf, EmptyState, SourceGate, Tile } from "@/components/ui/Tile";
 import { Page } from "@/components/ui/Page";
 import { useMealPlan, useShoppingList } from "@/hooks/useHub";
 import { useIdleReset } from "@/hooks/useIdleReset";
@@ -43,7 +43,8 @@ export function KitchenView({ initialTab }: { initialTab: Tab }) {
   );
 
   const meals = (
-    <Card
+    <Tile
+      tone="glass"
       title="Dinner plan"
       icon={UtensilsCrossed}
       className="wide:h-full wide:flex-[3]"
@@ -68,7 +69,7 @@ export function KitchenView({ initialTab }: { initialTab: Tab }) {
         ) : (
           <div
             className="grid gap-3 wide:gap-4"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 15rem), 1fr))" }}
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 16rem), 1fr))" }}
           >
             {plan.meals.map((meal) => (
               <MealTile
@@ -82,16 +83,17 @@ export function KitchenView({ initialTab }: { initialTab: Tab }) {
           </div>
         )}
         {plan.error && (
-          <p className="pt-3 text-label text-bad" role="status">
+          <p className="pt-3 text-small text-bad" role="status">
             {plan.error}
           </p>
         )}
       </SourceGate>
-    </Card>
+    </Tile>
   );
 
   const shopping = (
-    <Card
+    <Tile
+      tone="paper"
       title="Shopping list"
       icon={ShoppingBasket}
       className="wide:h-full wide:flex-[2]"
@@ -110,7 +112,7 @@ export function KitchenView({ initialTab }: { initialTab: Tab }) {
           <ShoppingItems list={list} />
         </div>
       </SourceGate>
-    </Card>
+    </Tile>
   );
 
   return (

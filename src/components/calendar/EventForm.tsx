@@ -109,15 +109,15 @@ function Field({
   hint?: string;
 }) {
   const heading = (
-    <span className="flex items-center gap-2 text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
-      <span className="text-ink-faint" aria-hidden>
+    <span className="flex items-center gap-2 text-small font-semibold uppercase tracking-[0.08em] text-fg-soft">
+      <span className="text-fg-faint" aria-hidden>
         {icon}
       </span>
       {label}
     </span>
   );
   return (
-    <section className="border-t border-hairline py-4 first:border-t-0 first:pt-0">
+    <section className="border-t border-line py-4 first:border-t-0 first:pt-0">
       {inline ? (
         <div className="flex items-center justify-between gap-4">
           {heading}
@@ -129,13 +129,13 @@ function Field({
           {children}
         </div>
       )}
-      {hint && <p className="mt-2 text-stamp text-ink-faint">{hint}</p>}
+      {hint && <p className="mt-2 text-tiny text-fg-faint">{hint}</p>}
     </section>
   );
 }
 
 const WELL =
-  "min-h-12 rounded-2xl bg-surface-2 px-4 text-body text-ink ring-1 ring-inset ring-hairline outline-none focus:ring-2 focus:ring-ink";
+  "min-h-12 rounded-2xl bg-fill px-4 text-body text-fg ring-1 ring-inset ring-line outline-none focus:ring-2 focus:ring-accent";
 
 /** A round stepper button for the wall's date and time editors. */
 function Step({
@@ -152,7 +152,7 @@ function Step({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface text-ink ring-1 ring-inset ring-hairline-strong active:scale-95 active:bg-ground-2"
+      className="flex size-11 shrink-0 items-center justify-center rounded-full bg-raised text-fg ring-1 ring-inset ring-line-strong active:scale-95 active:bg-fill-2"
     >
       {children}
     </button>
@@ -162,11 +162,11 @@ function Step({
 /** Wall date stepper: ‹ value ›. */
 function DateStepper({ value, onChange }: { value: DateParts; onChange: (v: DateParts) => void }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface-2 p-2 ring-1 ring-inset ring-hairline">
+    <div className="flex items-center justify-between gap-2 rounded-2xl bg-fill p-2 ring-1 ring-inset ring-line">
       <Step onClick={() => onChange(addDaysToParts(value, -1))} label="Previous day">
         <ChevronLeft className="size-6" strokeWidth={2.5} aria-hidden />
       </Step>
-      <span className="whitespace-nowrap text-title text-ink">{dateLabel(value)}</span>
+      <span className="whitespace-nowrap text-lead text-fg">{dateLabel(value)}</span>
       <Step onClick={() => onChange(addDaysToParts(value, 1))} label="Next day">
         <ChevronRight className="size-6" strokeWidth={2.5} aria-hidden />
       </Step>
@@ -177,7 +177,7 @@ function DateStepper({ value, onChange }: { value: DateParts; onChange: (v: Date
 /** Wall time stepper: hour − + · value · minute − +. */
 function TimeStepper({ value, onChange }: { value: TimeParts; onChange: (v: TimeParts) => void }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-2xl bg-surface-2 p-2 ring-1 ring-inset ring-hairline">
+    <div className="flex items-center justify-between gap-2 rounded-2xl bg-fill p-2 ring-1 ring-inset ring-line">
       <div className="flex items-center gap-1.5">
         <Step onClick={() => onChange(stepHour(value, -1))} label="Hour down">
           <Minus className="size-5" strokeWidth={2.5} aria-hidden />
@@ -186,7 +186,7 @@ function TimeStepper({ value, onChange }: { value: TimeParts; onChange: (v: Time
           <Plus className="size-5" strokeWidth={2.5} aria-hidden />
         </Step>
       </div>
-      <span className="whitespace-nowrap text-title tabular-nums text-ink">{timeLabel(value)}</span>
+      <span className="whitespace-nowrap text-lead tabular-nums text-fg">{timeLabel(value)}</span>
       <div className="flex items-center gap-1.5">
         <Step onClick={() => onChange(stepMinute(value, -1))} label="Minute down">
           <Minus className="size-5" strokeWidth={2.5} aria-hidden />
@@ -216,13 +216,13 @@ function ValuePill({
       type="button"
       aria-expanded={active}
       onClick={onClick}
-      className={`flex min-h-12 min-w-0 items-center gap-2 rounded-2xl px-4 text-body text-ink ring-inset ${
-        active ? "bg-ground-2 ring-2 ring-ink" : "bg-surface-2 ring-1 ring-hairline"
+      className={`flex min-h-12 min-w-0 items-center gap-2 rounded-2xl px-4 text-body text-fg ring-inset ${
+        active ? "bg-fill-2 ring-2 ring-accent" : "bg-fill ring-1 ring-line"
       } ${className}`}
     >
       <span className="min-w-0 flex-1 truncate text-left">{children}</span>
       <ChevronDown
-        className={`size-5 shrink-0 text-ink-faint transition-transform ${active ? "rotate-180" : ""}`}
+        className={`size-5 shrink-0 text-fg-faint transition-transform ${active ? "rotate-180" : ""}`}
         strokeWidth={2}
         aria-hidden
       />
@@ -446,7 +446,7 @@ export function EventForm({
 
       <SheetBody>
         {recurring && (
-          <p className="mb-4 rounded-2xl bg-surface-2 px-4 py-3 text-body text-ink-soft ring-1 ring-inset ring-hairline">
+          <p className="mb-4 rounded-2xl bg-fill px-4 py-3 text-body text-fg-soft ring-1 ring-inset ring-line">
             This event repeats. Change it in Google Calendar; you can delete the whole
             series here.
           </p>
@@ -458,14 +458,14 @@ export function EventForm({
               type="button"
               onClick={() => setKbOpen(true)}
               aria-label="Event title"
-              className={`flex w-full items-center text-left ${WELL} ${kbOpen ? "ring-2 ring-ink" : ""}`}
+              className={`flex w-full items-center text-left ${WELL} ${kbOpen ? "ring-2 ring-accent" : ""}`}
             >
               {draft.title ? (
-                <span className="text-ink">{draft.title}</span>
+                <span className="text-fg">{draft.title}</span>
               ) : (
-                <span className="text-ink-faint">What&rsquo;s happening?</span>
+                <span className="text-fg-faint">What&rsquo;s happening?</span>
               )}
-              {kbOpen && <span className="ml-0.5 h-6 w-0.5 animate-pulse bg-ink" aria-hidden />}
+              {kbOpen && <span className="ml-0.5 h-6 w-0.5 animate-pulse bg-accent" aria-hidden />}
             </button>
           ) : (
             <input
@@ -483,7 +483,7 @@ export function EventForm({
               }}
               placeholder="What's happening?"
               aria-label="Event title"
-              className={`w-full ${WELL} text-title placeholder:text-ink-faint`}
+              className={`w-full ${WELL} text-lead placeholder:text-fg-faint`}
             />
           )}
         </section>
@@ -550,8 +550,8 @@ export function EventForm({
                   onChange={(v) => patch({ repeatEndMode: v })}
                 />
                 {draft.repeatEndMode === "count" && (
-                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 p-2 pl-4 ring-1 ring-inset ring-hairline">
-                    <span className="text-body text-ink">{draft.repeatCount} times</span>
+                  <div className="flex items-center justify-between gap-3 rounded-2xl bg-fill p-2 pl-4 ring-1 ring-inset ring-line">
+                    <span className="text-body text-fg">{draft.repeatCount} times</span>
                     <span className="flex items-center gap-1.5">
                       <Step
                         onClick={() => patch({ repeatCount: Math.max(1, draft.repeatCount - 1) })}
@@ -594,28 +594,28 @@ export function EventForm({
           hint={
             repeatsOn
               ? "Off for repeating events."
-              : "Counts down to it in the header, on every screen."
+              : "Counts down to it at the bottom of every screen."
           }
         >
           <Toggle on={draft.countdown} onChange={setCountdown} label="Show a countdown" disabled={repeatsOn} />
         </Field>
 
         {!editing && (
-          <section className="border-t border-hairline py-4">
+          <section className="border-t border-line py-4">
             <button
               type="button"
               aria-expanded={remOpen}
               onClick={() => setRemOpen((o) => !o)}
               className="flex w-full items-center justify-between gap-4"
             >
-              <span className="flex items-center gap-2 text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
-                <Bell className="size-4 text-ink-faint" strokeWidth={2.25} aria-hidden />
+              <span className="flex items-center gap-2 text-small font-semibold uppercase tracking-[0.08em] text-fg-soft">
+                <Bell className="size-4 text-fg-faint" strokeWidth={2.25} aria-hidden />
                 Reminder
               </span>
-              <span className="flex items-center gap-1.5 text-body text-ink">
+              <span className="flex items-center gap-1.5 text-body text-fg">
                 {reminderLabel}
                 <ChevronDown
-                  className={`size-5 text-ink-faint transition-transform ${remOpen ? "rotate-180" : ""}`}
+                  className={`size-5 text-fg-faint transition-transform ${remOpen ? "rotate-180" : ""}`}
                   strokeWidth={2}
                   aria-hidden
                 />
@@ -652,7 +652,7 @@ export function EventForm({
         )}
         <div className="flex min-w-0 flex-1 flex-col items-end gap-2">
           {error && (
-            <p role="alert" className="text-right text-label text-bad">
+            <p role="alert" className="text-right text-small text-bad">
               {error}
             </p>
           )}
@@ -669,7 +669,7 @@ export function EventForm({
 
       {/* The wall's keyboard: slides up over the footer when the title is tapped. */}
       {isWall && kbOpen && (
-        <div className="absolute inset-x-0 bottom-0 z-20 animate-rise">
+        <div className="absolute inset-x-0 bottom-0 z-20 animate-rise overflow-hidden rounded-t-[1.75rem] border-t border-line shadow-float">
           <OnScreenKeyboard
             onInsert={(t) => setDraft((d) => reconcile({ ...d, title: d.title + t }))}
             onBackspace={() => setDraft((d) => reconcile({ ...d, title: d.title.slice(0, -1) }))}
@@ -702,12 +702,12 @@ function PersonPick({
     >
       <span
         className={`rounded-full transition-all ${
-          selected ? "ring-[3px] ring-ink ring-offset-2 ring-offset-surface" : "opacity-45"
+          selected ? "ring-[3px] ring-accent ring-offset-2 ring-offset-paper" : "opacity-45"
         }`}
       >
         {avatar}
       </span>
-      <span className={`text-stamp ${selected ? "font-semibold text-ink" : "text-ink-soft"}`}>{label}</span>
+      <span className={`text-tiny ${selected ? "font-semibold text-fg" : "text-fg-soft"}`}>{label}</span>
     </button>
   );
 }

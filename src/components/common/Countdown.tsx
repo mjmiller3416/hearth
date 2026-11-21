@@ -9,7 +9,7 @@ import { useMounted } from "@/lib/prefs";
 import { useTimeZone } from "./TimeZone";
 
 // The household's next countdown (spec D10): the soonest upcoming event flagged
-// "countdown", shown live in the header on every screen and on Today.
+// "countdown", shown live in the bottom bar on every wide screen and at the top of Home on a phone.
 //
 // It used to be published by the calendar view, so it vanished the moment you
 // opened any other page. The provider now looks for it itself: one calendar

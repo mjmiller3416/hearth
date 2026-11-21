@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Info, Loader2, Plus, ShoppingBasket } from "lucide-react";
 import { OnScreenKeyboard } from "@/components/common/OnScreenKeyboard";
-import { EmptyState } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/Tile";
 import { useTouchWall } from "@/hooks/useTouchWall";
 import type { AddNotice, ShoppingList } from "@/hooks/useHub";
 import { categoryLabel, groupByCategory, quantityText } from "@/lib/spoon/format";
@@ -21,10 +22,10 @@ import { SHOPPING_NAME_MAX } from "@/lib/spoon/types";
 
 function NoticeLine({ notice }: { notice: AddNotice }) {
   const color =
-    notice.tone === "ok" ? "text-good" : notice.tone === "error" ? "text-bad" : "text-ink-soft";
+    notice.tone === "ok" ? "text-good" : notice.tone === "error" ? "text-bad" : "text-fg-soft";
   const Icon = notice.tone === "ok" ? Check : notice.tone === "info" ? Info : null;
   return (
-    <p className={`flex items-center gap-1.5 text-label ${color}`} role="status">
+    <p className={`flex items-center gap-1.5 text-small ${color}`} role="status">
       {Icon && <Icon className="size-4 shrink-0" strokeWidth={2.5} aria-hidden />}
       {notice.text}
     </p>
@@ -45,7 +46,7 @@ function AddButton({
       type="button"
       onClick={onClick}
       disabled={!canAdd}
-      className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-full bg-ink px-5 text-label font-semibold leading-none text-on-ink transition-transform active:scale-95 disabled:opacity-35"
+      className="flex min-h-12 shrink-0 items-center gap-1.5 rounded-full bg-accent px-5 text-small font-semibold leading-none text-on-accent transition-transform active:scale-95 disabled:opacity-40"
     >
       {adding ? (
         <Loader2 className="size-5 animate-spin" strokeWidth={2.25} aria-hidden />
@@ -76,7 +77,7 @@ export function AddItemBar({ list }: { list: ShoppingList }) {
 
   return (
     <div className="shrink-0">
-      <div className="flex items-center gap-2 rounded-full bg-surface-2 p-1.5 pl-4 ring-1 ring-inset ring-hairline-strong">
+      <div className="flex items-center gap-2 rounded-full bg-fill p-1.5 pl-5">
         {isWall ? (
           <button
             type="button"
@@ -85,11 +86,11 @@ export function AddItemBar({ list }: { list: ShoppingList }) {
             className="flex min-h-12 min-w-0 flex-1 items-center text-left text-body"
           >
             {draft ? (
-              <span className="truncate text-ink">{draft}</span>
+              <span className="truncate text-fg">{draft}</span>
             ) : (
-              <span className="text-ink-faint">Add to the list…</span>
+              <span className="text-fg-faint">Add to the list…</span>
             )}
-            {kbOpen && <span className="ml-0.5 h-6 w-0.5 shrink-0 animate-pulse bg-ink" aria-hidden />}
+            {kbOpen && <span className="ml-0.5 h-6 w-0.5 shrink-0 animate-pulse bg-accent" aria-hidden />}
           </button>
         ) : (
           <input
@@ -107,7 +108,7 @@ export function AddItemBar({ list }: { list: ShoppingList }) {
             }}
             placeholder="Add to the list…"
             aria-label="Item to add"
-            className="min-h-12 min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-ink-faint"
+            className="min-h-12 min-w-0 flex-1 bg-transparent text-body text-fg outline-none placeholder:text-fg-faint"
           />
         )}
         <AddButton canAdd={canAdd} adding={list.adding} onClick={() => void submit()} />
@@ -119,13 +120,16 @@ export function AddItemBar({ list }: { list: ShoppingList }) {
       )}
 
       {/* The wall's keyboard, docked to the bottom with a compose strip above
-          it so the hand never travels back up between items. */}
-      {isWall && kbOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-40 animate-rise">
-          <div className="flex items-center gap-4 border-t border-hairline bg-surface px-6 py-3">
+          it so the hand never travels back up between items. It is portaled
+          to <body>: a tile is its own stacking context (and a glass one is a
+          containing block for fixed children), so from inside the tile it
+          would sit under the bottom bar. */}
+      {isWall && kbOpen && createPortal(
+        <div className="paper fixed inset-x-0 bottom-0 z-40 animate-rise rounded-t-[2rem] shadow-float">
+          <div className="flex items-center gap-4 px-6 py-3">
             <div className="min-w-0 flex-1">
-              <p className="truncate text-body text-ink">
-                {draft || <span className="text-ink-faint">Type an item…</span>}
+              <p className="truncate text-body text-fg">
+                {draft || <span className="text-fg-faint">Type an item…</span>}
               </p>
               {list.notice && <NoticeLine notice={list.notice} />}
             </div>
@@ -139,7 +143,8 @@ export function AddItemBar({ list }: { list: ShoppingList }) {
             onBackspace={() => setDraft((d) => d.slice(0, -1))}
             onDone={() => setKbOpen(false)}
           />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -161,32 +166,27 @@ export function ShoppingItems({
     );
   }
 
-  // The short form (Today) is a flat A→Z run; the full list groups by aisle.
+  // The short form (Home) is a plain ruled list, A to Z, the way a paper list
+  // on the fridge reads; the full list groups by aisle.
   if (limit !== undefined) {
     const shown = [...list.needed]
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, limit);
     const more = list.needed.length - shown.length;
     return (
-      <div>
-        <ul className="flex flex-wrap gap-1.5">
-          {shown.map((item) => (
-            <li
-              key={item.id}
-              className={`rounded-full px-3 py-1.5 text-label text-ink ring-1 ring-inset ring-hairline ${
-                list.fresh === item.name.toLowerCase() ? "bg-good-soft" : "bg-surface-2"
-              }`}
-            >
-              {item.name}
-            </li>
-          ))}
-          {more > 0 && (
-            <li className="rounded-full px-3 py-1.5 text-label font-semibold text-ink-soft">
-              +{more} more
-            </li>
-          )}
-        </ul>
-      </div>
+      <ul className="divide-y divide-line">
+        {shown.map((item) => (
+          <li
+            key={item.id}
+            className={`-mx-2 truncate rounded-lg px-2 py-2 font-display text-lead leading-tight text-fg transition-colors ${
+              list.fresh === item.name.toLowerCase() ? "bg-good-soft" : ""
+            }`}
+          >
+            {item.name}
+          </li>
+        ))}
+        {more > 0 && <li className="py-2 text-small font-semibold text-fg-soft">+{more} more</li>}
+      </ul>
     );
   }
 
@@ -194,10 +194,10 @@ export function ShoppingItems({
     <div className="flex flex-col gap-5">
       {groupByCategory(list.needed).map((group) => (
         <section key={group.slug} aria-label={categoryLabel(group.slug)}>
-          <h3 className="mb-1 text-stamp font-semibold uppercase tracking-[0.1em] text-ink-faint">
+          <h3 className="mb-1 text-tiny font-bold uppercase tracking-[0.12em] text-accent">
             {categoryLabel(group.slug)}
           </h3>
-          <ul className="divide-y divide-hairline">
+          <ul className="divide-y divide-line">
             {group.items.map((item) => {
               const qty = quantityText(item);
               const fresh = list.fresh === item.name.toLowerCase();
@@ -208,8 +208,8 @@ export function ShoppingItems({
                     fresh ? "bg-good-soft" : ""
                   }`}
                 >
-                  <span className="min-w-0 text-body text-ink">{item.name}</span>
-                  {qty && <span className="shrink-0 text-label text-ink-soft">{qty}</span>}
+                  <span className="min-w-0 text-body font-medium text-fg">{item.name}</span>
+                  {qty && <span className="shrink-0 text-small text-fg-soft">{qty}</span>}
                 </li>
               );
             })}

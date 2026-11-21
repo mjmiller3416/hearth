@@ -13,8 +13,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "fullscreen",
     display_override: ["fullscreen", "standalone"],
     orientation: "any",
-    background_color: "#f5f0e6",
-    theme_color: "#f5f0e6",
+    background_color: "#2f7ff0",
+    theme_color: "#2f7ff0",
     icons: [
       {
         src: "/icon.svg",

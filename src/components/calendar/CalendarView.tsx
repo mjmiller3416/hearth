@@ -5,7 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useHousehold } from "@/components/app/Household";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { Button, IconButton, Segmented } from "@/components/ui/Button";
-import { AsOf, Card, EmptyState, SourceGate } from "@/components/ui/Card";
+import { AsOf, EmptyState, SourceGate, Tile } from "@/components/ui/Tile";
 import { Page } from "@/components/ui/Page";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { useIdleReset } from "@/hooks/useIdleReset";
@@ -156,9 +156,10 @@ export function CalendarView() {
       >
         {!clock ? null : (
           <div className="flex flex-col gap-4 pb-20 wide:h-full wide:pb-0">
-            <Card
+            <Tile
+              tone="glass"
               className="wide:min-h-0 wide:flex-1"
-              bodyClassName="flex flex-col !p-2 wide:!p-3"
+              bodyClassName="flex flex-col !p-2.5 wide:!p-4"
             >
               {mode === "month" ? (
                 <MonthGrid
@@ -171,7 +172,7 @@ export function CalendarView() {
               ) : (
                 <WeekGrid anchor={anchor} events={events} now={now} onDay={onDay} />
               )}
-            </Card>
+            </Tile>
 
             {/* Phone: the selected day's events. */}
             <div className="wide:hidden">
@@ -194,8 +195,8 @@ export function CalendarView() {
           type="button"
           onClick={() => sheets.openAdd(phoneDay)}
           aria-label="Add event"
-          className="fixed bottom-20 right-4 z-30 flex size-14 items-center justify-center rounded-full bg-ink text-on-ink shadow-pop active:scale-95 wide:hidden"
-          style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
+          className="fixed bottom-20 right-4 z-30 flex size-14 items-center justify-center rounded-full bg-accent text-on-accent shadow-float active:scale-95 wide:hidden"
+          style={{ marginBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
         >
           <Plus className="size-7" strokeWidth={2.5} aria-hidden />
         </button>
@@ -235,7 +236,7 @@ function MonthGrid({
         {WEEKDAY_LABELS.map((label) => (
           <div
             key={label}
-            className="pb-1.5 pt-1 text-center text-stamp font-semibold uppercase tracking-[0.08em] text-ink-faint wide:text-label"
+            className="pb-2 pt-1 text-center text-tiny font-bold uppercase tracking-[0.12em] text-fg-soft wide:text-small"
           >
             {label}
           </div>
@@ -243,7 +244,7 @@ function MonthGrid({
       </div>
       {/* Always six rows so the layout never jumps between months. */}
       <div
-        className="grid grid-cols-7 overflow-hidden rounded-2xl border-l border-t border-hairline wide:min-h-0 wide:flex-1"
+        className="grid grid-cols-7 gap-1 wide:min-h-0 wide:flex-1 wide:gap-1.5"
         style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}
       >
         {days.map((date) => {
@@ -261,19 +262,19 @@ function MonthGrid({
               onClick={() => onDay(date)}
               aria-label={`${dayPanelTitle(date)}, ${dayEvents.length} ${dayEvents.length === 1 ? "event" : "events"}`}
               aria-pressed={selected ? isSelected : undefined}
-              className={`relative flex h-[3.4rem] min-w-0 flex-col items-center overflow-hidden border-b border-r border-hairline pt-1 text-left transition-colors active:bg-surface-2 wide:h-auto wide:items-stretch wide:px-1 ${
-                !inMonth ? "bg-ground/60" : today ? "bg-surface-2" : ""
-              } ${isSelected ? "ring-2 ring-inset ring-ink" : ""}`}
+              className={`relative flex h-[3.4rem] min-w-0 flex-col items-center overflow-hidden rounded-xl pt-1 text-left transition-colors active:bg-fill-2 wide:h-auto wide:items-stretch wide:rounded-2xl wide:px-1.5 wide:pt-1.5 ${
+                !inMonth ? "" : today ? "bg-fill-2" : "bg-fill"
+              } ${isSelected ? "ring-2 ring-inset ring-accent" : ""}`}
             >
               <span
-                className={`flex size-7 shrink-0 items-center justify-center rounded-full font-display text-[1.15rem] leading-none wide:size-8 ${
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full font-display text-[1.1rem] font-medium leading-none wide:size-8 ${
                   today
-                    ? "bg-ink text-on-ink"
+                    ? "bg-accent text-on-accent"
                     : !inMonth
-                      ? "text-ink-faint"
+                      ? "text-fg-faint"
                       : past
-                        ? "text-ink-soft"
-                        : "text-ink"
+                        ? "text-fg-faint"
+                        : "text-fg"
                 }`}
               >
                 {date.getDate()}
@@ -284,7 +285,7 @@ function MonthGrid({
                 {dayEvents.slice(0, 4).map((ev) => (
                   <span
                     key={ev.id}
-                    className="size-1.5 rounded-full"
+                    className="size-1.5 rounded-full shadow-[0_0_0_1px_rgba(255,255,255,0.6)]"
                     style={{ backgroundColor: `var(${colorVar(bandsFor(ev.colors)[0])})` }}
                   />
                 ))}
@@ -300,7 +301,7 @@ function MonthGrid({
                   <EventChip key={ev.id} event={ev} now={now} />
                 ))}
                 {overflow > 0 && (
-                  <span className="px-1.5 text-stamp font-semibold text-ink-soft">+{overflow} more</span>
+                  <span className="px-2 text-tiny font-semibold text-fg-soft">+{overflow} more</span>
                 )}
               </span>
             </button>
@@ -337,17 +338,17 @@ function WeekGrid({
             type="button"
             onClick={() => onDay(date)}
             aria-label={`${dayPanelTitle(date)}, ${dayEvents.length} ${dayEvents.length === 1 ? "event" : "events"}`}
-            className={`flex min-h-0 min-w-0 flex-col rounded-2xl p-2.5 text-left transition-colors active:bg-surface-2 ${
-              today ? "bg-surface-2 ring-1 ring-inset ring-hairline-strong" : ""
+            className={`flex min-h-0 min-w-0 flex-col rounded-2xl p-2.5 text-left transition-colors active:bg-fill-2 ${
+              today ? "bg-fill-2" : "bg-fill"
             }`}
           >
-            <span className="mb-2 flex shrink-0 items-center gap-2 border-b border-hairline pb-2">
-              <span className="text-label font-semibold uppercase tracking-wide text-ink-soft">
+            <span className="mb-2 flex shrink-0 items-center gap-2 border-b border-line pb-2">
+              <span className="text-small font-semibold uppercase tracking-wide text-fg-soft">
                 {WEEKDAY_LABELS[date.getDay()]}
               </span>
               <span
-                className={`flex size-9 items-center justify-center rounded-full font-display text-title leading-none ${
-                  today ? "bg-ink text-on-ink" : past ? "text-ink-faint" : "text-ink"
+                className={`flex size-9 items-center justify-center rounded-full font-display text-lead font-medium leading-none ${
+                  today ? "bg-accent text-on-accent" : past ? "text-fg-faint" : "text-fg"
                 }`}
               >
                 {date.getDate()}
@@ -383,7 +384,7 @@ function DayAgenda({
   stamp: React.ReactNode;
 }) {
   return (
-    <Card title={isToday(date, now) ? `Today · ${dayPanelTitle(date)}` : dayPanelTitle(date)} stamp={stamp}>
+    <Tile tone="glass" title={isToday(date, now) ? `Today · ${dayPanelTitle(date)}` : dayPanelTitle(date)} stamp={stamp}>
       {events.length === 0 ? (
         <EmptyState icon={CalendarDays} title="Nothing scheduled" compact />
       ) : (
@@ -395,6 +396,6 @@ function DayAgenda({
           ))}
         </ul>
       )}
-    </Card>
+    </Tile>
   );
 }

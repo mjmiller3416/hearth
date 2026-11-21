@@ -5,9 +5,9 @@ import { Backpack, ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { useHousehold } from "@/components/app/Household";
 import { useTextOn } from "@/components/common/ColorProvider";
 import { useTimeZone } from "@/components/common/TimeZone";
-import { tint } from "@/components/ui/Avatar";
+import { ON_LIGHT } from "@/components/ui/Avatar";
 import { Button, IconButton } from "@/components/ui/Button";
-import { AsOf, Card, EmptyState, SourceGate } from "@/components/ui/Card";
+import { AsOf, EmptyState, SourceGate, Tile } from "@/components/ui/Tile";
 import { Page } from "@/components/ui/Page";
 import { useSchoolWeek } from "@/hooks/useHub";
 import { useIdleReset } from "@/hooks/useIdleReset";
@@ -92,7 +92,7 @@ export function SchoolView() {
       eyebrow={weekLabel(today, monday) ?? "Week of"}
       controls={
         <>
-          <span className="font-display text-title text-ink">{weekRangeLabel(monday)}</span>
+          <span className="font-display text-lead font-medium text-fg">{weekRangeLabel(monday)}</span>
           <span className="flex items-center gap-1">
             <IconButton label="Previous week" onClick={() => step(-1)}>
               <ChevronLeft className="size-6" strokeWidth={2.25} aria-hidden />
@@ -122,22 +122,23 @@ export function SchoolView() {
                     aria-pressed={active}
                     onClick={() => setPickedDay(d)}
                     className={`flex flex-col items-center rounded-2xl py-2 leading-none transition-colors ${
-                      active ? "bg-ink text-on-ink" : "bg-surface text-ink-soft ring-1 ring-inset ring-hairline"
+                      active ? "bg-accent text-on-accent" : "dock text-fg-soft"
                     }`}
                   >
-                    <span className="text-stamp font-semibold uppercase">
+                    <span className="text-tiny font-semibold uppercase">
                       {date?.toLocaleDateString("en-US", { weekday: "short" })}
                     </span>
-                    <span className="mt-1 font-display text-title">{date?.getDate()}</span>
+                    <span className="mt-1 font-display text-lead">{date?.getDate()}</span>
                     <span
-                      className={`mt-1 size-1.5 rounded-full ${d === today ? "bg-ember" : "bg-transparent"}`}
+                      className={`mt-1 size-1.5 rounded-full ${d === today ? "bg-spark" : "bg-transparent"}`}
                       aria-hidden
                     />
                   </button>
                 );
               })}
             </div>
-            <Card
+            <Tile
+              tone="glass"
               bodyClassName="pt-5"
               stamp={<AsOf isStale={week.isStale} lastUpdated={week.lastUpdated} />}
             >
@@ -146,17 +147,17 @@ export function SchoolView() {
                 activities={activities.filter((a) => a.day === day)}
                 nowMinutes={day === today ? nowMinutes : null}
               />
-            </Card>
+            </Tile>
           </div>
 
           {/* Wide: the week grid. */}
           <div className="hidden h-full wide:block">
             {activities.length === 0 ? (
-              <Card className="h-full">
+              <Tile tone="glass" className="h-full">
                 <EmptyState icon={Backpack} title="Nothing scheduled this week">
                   Add activities in Tandem and they&rsquo;ll show up here.
                 </EmptyState>
-              </Card>
+              </Tile>
             ) : (
               <WeekGrid
                 days={days}
@@ -225,9 +226,9 @@ function WeekGrid({
     nowMinutes !== null && nowMinutes >= firstHour * 60 && nowMinutes <= lastHour * 60;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[1.5rem] bg-surface shadow-card ring-1 ring-hairline/70">
+    <div className="tile tile-glass flex h-full flex-col">
       {/* Day headers, each with its lane labels */}
-      <div className="grid shrink-0 border-b border-hairline" style={{ gridTemplateColumns: columns }}>
+      <div className="grid shrink-0 border-b border-line" style={{ gridTemplateColumns: columns }}>
         <div />
         {days.map((day) => {
           const isToday = day === today;
@@ -235,15 +236,15 @@ function WeekGrid({
           return (
             <div
               key={day}
-              className={`flex flex-col gap-1.5 border-l border-hairline px-3 pb-2.5 pt-3 ${isToday ? "bg-surface-2" : ""}`}
+              className={`flex flex-col gap-1.5 border-l border-line px-3 pb-2.5 pt-3 ${isToday ? "bg-fill" : ""}`}
             >
               <div className="flex items-baseline justify-center gap-2">
-                <span className="text-label font-semibold uppercase tracking-wide text-ink-soft">
+                <span className="text-small font-semibold uppercase tracking-wide text-fg-soft">
                   {date?.toLocaleDateString("en-US", { weekday: "short" })}
                 </span>
                 <span
-                  className={`rounded-full px-2.5 py-0.5 font-display text-title leading-none ${
-                    isToday ? "bg-ink text-on-ink" : "text-ink"
+                  className={`rounded-full px-2.5 py-0.5 font-display text-lead font-medium leading-none ${
+                    isToday ? "bg-accent text-on-accent" : "text-fg"
                   }`}
                   aria-current={isToday ? "date" : undefined}
                 >
@@ -255,11 +256,11 @@ function WeekGrid({
                   {kids.map((kid) => (
                     <span
                       key={kid.child}
-                      className="flex items-center justify-center gap-1.5 truncate text-stamp font-semibold text-ink-soft"
+                      className="flex items-center justify-center gap-1.5 truncate text-tiny font-semibold text-fg-soft"
                     >
                       <span
                         aria-hidden
-                        className="size-2.5 shrink-0 rounded-full"
+                        className="size-2.5 shrink-0 rounded-full shadow-[0_0_0_1.5px_rgba(255,255,255,0.6)]"
                         style={{ backgroundColor: `var(${colorVar(kid.color)})` }}
                       />
                       {kid.name}
@@ -279,7 +280,7 @@ function WeekGrid({
             hours.map((hour, i) => (
               <span
                 key={hour}
-                className={`absolute right-2.5 whitespace-nowrap text-stamp tabular-nums text-ink-faint ${
+                className={`absolute right-2.5 whitespace-nowrap text-tiny tabular-nums text-fg-faint ${
                   i === 0 ? "translate-y-1" : i === hours.length - 1 ? "-translate-y-full" : "-translate-y-1/2"
                 }`}
                 style={{ top: y(hour * 60) }}
@@ -295,7 +296,7 @@ function WeekGrid({
           return (
             <div
               key={day}
-              className={`relative grid border-l border-hairline ${isToday ? "bg-surface-2" : ""}`}
+              className={`relative grid border-l border-line ${isToday ? "bg-fill" : ""}`}
               style={{ gridTemplateColumns: `repeat(${Math.max(kids.length, 1)}, minmax(0, 1fr))` }}
             >
               {bodyHeight > 0 &&
@@ -303,7 +304,7 @@ function WeekGrid({
                   <div
                     key={hour}
                     aria-hidden
-                    className="pointer-events-none absolute inset-x-0 border-t border-hairline"
+                    className="pointer-events-none absolute inset-x-0 border-t border-line"
                     style={{ top: y(hour * 60) }}
                   />
                 ))}
@@ -312,7 +313,7 @@ function WeekGrid({
                   key={kid.child}
                   role="group"
                   aria-label={`${kid.name}, ${day}`}
-                  className={`relative ${i > 0 ? "border-l border-dashed border-hairline" : ""} ${past ? "opacity-55" : ""}`}
+                  className={`relative ${i > 0 ? "border-l border-dashed border-line" : ""} ${past ? "opacity-55" : ""}`}
                 >
                   {bodyHeight > 0 &&
                     layoutLane(
@@ -336,8 +337,8 @@ function WeekGrid({
                   className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
                   style={{ top: y(nowMinutes) }}
                 >
-                  <span className="-ml-1 size-2.5 -translate-y-1/2 rounded-full bg-ember" />
-                  <span className="h-0.5 flex-1 -translate-y-1/2 bg-ember" />
+                  <span className="-ml-1 size-2.5 -translate-y-1/2 rounded-full bg-spark" />
+                  <span className="h-0.5 flex-1 -translate-y-1/2 bg-spark" />
                 </div>
               )}
             </div>
@@ -374,7 +375,7 @@ function Block({
   return (
     <div
       aria-label={`${activity.name}, ${kid.name}, ${range}${activity.important ? ", important" : ""}`}
-      className={`absolute flex flex-col overflow-hidden rounded-lg px-2 leading-tight ${
+      className={`absolute flex flex-col overflow-hidden rounded-xl px-2.5 leading-tight ${
         roomy ? "py-1.5" : "justify-center py-0"
       }`}
       style={{
@@ -382,20 +383,18 @@ function Block({
         height: h,
         left: `calc(${(column / columns) * 100}% + 3px)`,
         width: `calc(${100 / columns}% - 6px)`,
-        backgroundColor: activity.important ? color : tint(kid.color, 24),
-        color: activity.important
-          ? textOn(kid.color) === "dark"
-            ? "#27221c"
-            : "#ffffff"
-          : "var(--color-ink)",
-        boxShadow: activity.important ? undefined : `inset 4px 0 0 ${color}`,
+        // Every block is the kid's own color, solid: the week reads by color
+        // from across the room. An important one adds a star and a white rim.
+        backgroundColor: color,
+        color: textOn(kid.color) === "dark" ? ON_LIGHT : "#ffffff",
+        boxShadow: activity.important ? "0 0 0 2px rgba(255,255,255,0.9)" : undefined,
       }}
     >
-      <span className="flex min-w-0 items-center gap-1 text-stamp font-semibold">
+      <span className="flex min-w-0 items-center gap-1 text-tiny font-semibold">
         {activity.important && <Star className="size-3.5 shrink-0 fill-current" aria-hidden />}
         <span className="truncate">{activity.name}</span>
       </span>
-      {roomy && <span className="truncate text-stamp opacity-80">{range}</span>}
+      {roomy && <span className="truncate text-tiny opacity-80">{range}</span>}
     </div>
   );
 }

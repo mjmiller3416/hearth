@@ -6,7 +6,7 @@ import { useHousehold } from "@/components/app/Household";
 import { useCleanSession, useKidsChores } from "@/hooks/useHub";
 import { useIdleReset } from "@/hooks/useIdleReset";
 import { Segmented } from "@/components/ui/Button";
-import { AsOf, Card, EmptyState, SourceGate } from "@/components/ui/Card";
+import { AsOf, EmptyState, SourceGate, Tile } from "@/components/ui/Tile";
 import { Page } from "@/components/ui/Page";
 import { KidChoreList } from "./ChoreList";
 import { CleanTask, DoneToday, RoomPicker } from "./CleanSession";
@@ -82,8 +82,9 @@ export function ChoresView({ initialMode }: { initialMode: Mode | null }) {
               style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, 18rem), 1fr))` }}
             >
               {columns.map((col) => (
-                <Card
+                <Tile
                   key={col.kid.id}
+                  tone="glass"
                   className="wide:h-full"
                   bodyClassName="flex flex-col pt-5"
                   stamp={<AsOf isStale={kids.state.isStale} lastUpdated={kids.state.lastUpdated} />}
@@ -93,7 +94,7 @@ export function ChoresView({ initialMode }: { initialMode: Mode | null }) {
                     onComplete={(chore) => kids.complete(col.kid.id, chore)}
                     onUndo={(chore) => kids.undo(col.kid.id, chore)}
                   />
-                </Card>
+                </Tile>
               ))}
             </div>
           )}
@@ -107,7 +108,7 @@ export function ChoresView({ initialMode }: { initialMode: Mode | null }) {
           rows={4}
         >
           <div className="flex flex-col gap-4 wide:h-full wide:flex-row wide:gap-5">
-            <Card className="min-h-[24rem] wide:min-h-0 wide:flex-[5]" bodyClassName="flex flex-col pt-5">
+            <Tile tone="glass" className="min-h-[24rem] wide:min-h-0 wide:flex-[5]" bodyClassName="flex flex-col pt-5">
               {clean.rooms.length > 0 && (
                 <RoomPicker
                   rooms={clean.rooms}
@@ -118,8 +119,9 @@ export function ChoresView({ initialMode }: { initialMode: Mode | null }) {
               <div className="min-h-0 flex-1">
                 <CleanTask session={clean} />
               </div>
-            </Card>
-            <Card
+            </Tile>
+            <Tile
+              tone="glass"
               title="Done today"
               icon={Sparkles}
               className="wide:flex-[2]"
@@ -127,7 +129,7 @@ export function ChoresView({ initialMode }: { initialMode: Mode | null }) {
               stamp={<AsOf isStale={clean.state.isStale} lastUpdated={clean.state.lastUpdated} />}
             >
               <DoneToday completions={clean.completions} color={clean.adult?.color ?? null} />
-            </Card>
+            </Tile>
           </div>
         </SourceGate>
       )}

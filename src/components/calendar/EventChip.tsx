@@ -3,18 +3,18 @@
 import type { CSSProperties } from "react";
 import type { CalendarEvent, Member } from "@/lib/calendar/types";
 import { colorVar, EVERYONE_COLOR } from "@/lib/calendar/palette";
-import { eventClockLabel, eventTimeLabel } from "@/lib/calendar/dates";
+import { eventClockRange, eventTimeLabel } from "@/lib/calendar/dates";
 import { countdownDays } from "@/lib/calendar/event";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { useTextOn } from "@/components/common/ColorProvider";
-import { Avatar, FamilyAvatar } from "@/components/ui/Avatar";
+import { Avatar, FamilyAvatar, ON_LIGHT } from "@/components/ui/Avatar";
 import { Hourglass, Repeat } from "lucide-react";
 
 // How an event is drawn, in its two forms:
 //
 //   EventChip  the compact one-line chip packed into a month cell or week column
-//   EventRow   the roomier row in a day's list (Today, the day sheet, a phone's
-//              agenda): time, color, title, and who it's for
+//   EventRow   the roomier row in a day's list (Home, the day sheet, a phone's
+//              agenda): a color bar, the time over the title, and who it's for
 //
 // Color comes from the event's resolved band colors (spec D3). One color fills
 // solid; two or three render as HARD-EDGED bands, never a blend (a blend at six
@@ -25,7 +25,6 @@ import { Hourglass, Repeat } from "lucide-react";
 // is the same in the light and evening themes, so its text must be too.
 
 const BAND_CAP = 3;
-const DARK_TEXT = "#27221c";
 
 /** Bands actually painted: 4+ colors collapse to the single "everyone" fill. */
 export function bandsFor(colors: string[]): string[] {
@@ -81,7 +80,7 @@ export function EventChip({ event, now }: { event: CalendarEvent; now?: Date }) 
   // shadow on multi-band chips so it stays legible over a light band.
   const allDark = bands.every((c) => textOn(c) === "dark");
   const style: CSSProperties = {
-    color: allDark ? DARK_TEXT : "#ffffff",
+    color: allDark ? ON_LIGHT : "#ffffff",
     textShadow: bands.length > 1 && !allDark ? "0 1px 2px rgba(0,0,0,0.4)" : undefined,
   };
   const time = eventTimeLabel(event, timeZone);
@@ -91,12 +90,12 @@ export function EventChip({ event, now }: { event: CalendarEvent; now?: Date }) 
     // parent's align-items: stretch let the chip shrink to its content in the
     // wall's WebView, so the title's truncate had nothing to clip.
     <div
-      className="relative isolate w-full min-w-0 overflow-hidden rounded-md [transform:translateZ(0)]"
+      className="relative isolate w-full min-w-0 overflow-hidden rounded-lg [transform:translateZ(0)]"
       title={event.title}
     >
       <BandLayer bands={bands} />
       <div
-        className="relative flex min-w-0 items-baseline gap-1.5 px-1.5 py-px text-stamp leading-tight wide:text-label"
+        className="relative flex min-w-0 items-baseline gap-1.5 px-2 py-0.5 text-tiny font-medium leading-tight wide:text-small"
         style={style}
       >
         {time && <span className="shrink-0 font-semibold tabular-nums opacity-90">{time}</span>}
@@ -140,7 +139,10 @@ export function eventPeople(
 function ColorBar({ colors }: { colors: string[] }) {
   const bands = bandsFor(colors);
   return (
-    <span className="flex w-1.5 shrink-0 flex-col self-stretch overflow-hidden rounded-full" aria-hidden>
+    <span
+      className="flex w-2 shrink-0 flex-col self-stretch overflow-hidden rounded-full shadow-[0_0_0_1.5px_rgba(255,255,255,0.55)]"
+      aria-hidden
+    >
       {bands.map((c, i) => (
         <span key={`${c}-${i}`} className="flex-1" style={{ backgroundColor: `var(${colorVar(c)})` }} />
       ))}
@@ -167,48 +169,42 @@ export function EventRow({
 
   const body = (
     <>
-      <span className="w-[4.6em] shrink-0 text-label tabular-nums leading-tight text-ink-soft">
-        {eventClockLabel(event, timeZone)}
-      </span>
       <ColorBar colors={event.colors} />
-      <span className="min-w-0 flex-1 py-0.5">
-        <span className="line-clamp-2 text-body leading-snug text-ink">{event.title}</span>
-        {(event.countdown || event.recurring) && (
-          <span className="mt-0.5 flex items-center gap-3 text-stamp text-ink-faint">
-            {event.countdown && now && (
-              <span className="flex items-center gap-1">
-                <Hourglass className="size-3.5" strokeWidth={2.25} aria-hidden />
-                {countdownBadge(event, now) === "today" ? "Today" : `in ${countdownBadge(event, now)}`}
-              </span>
-            )}
-            {event.recurring && (
-              <span className="flex items-center gap-1">
-                <Repeat className="size-3.5" strokeWidth={2.25} aria-hidden />
-                Repeats
-              </span>
-            )}
-          </span>
-        )}
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-x-3 overflow-hidden whitespace-nowrap text-tiny font-semibold uppercase tracking-[0.06em] text-fg-soft">
+          {eventClockRange(event, timeZone)}
+          {event.countdown && now && (
+            <span className="flex items-center gap-1 normal-case tracking-normal">
+              <Hourglass className="size-3.5" strokeWidth={2.25} aria-hidden />
+              {countdownBadge(event, now) === "today" ? "Today" : `in ${countdownBadge(event, now)}`}
+            </span>
+          )}
+          {event.recurring && (
+            <span className="flex items-center gap-1 normal-case tracking-normal">
+              <Repeat className="size-3.5" strokeWidth={2.25} aria-hidden />
+              Repeats
+            </span>
+          )}
+        </span>
+        <span className="mt-0.5 line-clamp-2 font-display text-lead leading-tight text-fg">{event.title}</span>
       </span>
-      <span className="flex shrink-0 items-center -space-x-1.5">
+      <span className="flex shrink-0 items-center -space-x-1.5 self-center">
         {family ? (
-          <FamilyAvatar size="xs" />
+          <FamilyAvatar size="sm" />
         ) : (
-          people.map((m) => (
-            <Avatar key={m.key} name={m.name} color={m.color} size="xs" className="ring-2 ring-surface" />
-          ))
+          people.map((m) => <Avatar key={m.key} name={m.name} color={m.color} size="sm" />)
         )}
       </span>
     </>
   );
 
-  const cls = `flex w-full items-stretch gap-3 rounded-2xl px-2 py-2 text-left ${dim ? "opacity-50" : ""}`;
+  const cls = `flex w-full items-stretch gap-3.5 rounded-2xl px-2 py-2 text-left ${dim ? "opacity-50" : ""}`;
   return onOpen ? (
     <button
       type="button"
       onClick={() => onOpen(event)}
       aria-label={`Open ${event.title}`}
-      className={`${cls} transition-colors active:bg-surface-2`}
+      className={`${cls} transition-colors active:bg-fill`}
     >
       {body}
     </button>

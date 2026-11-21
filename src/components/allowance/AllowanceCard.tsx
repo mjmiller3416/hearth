@@ -5,13 +5,13 @@ import { Eye, EyeOff, PenLine, PiggyBank } from "lucide-react";
 import type { HouseholdMember } from "@/lib/household";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { Button } from "@/components/ui/Button";
-import { AsOf, Card, Loading } from "@/components/ui/Card";
+import { AsOf, Loading, Tile } from "@/components/ui/Tile";
 import { useClock } from "@/hooks/useNow";
 import { useUpstream } from "@/hooks/useUpstream";
 import { formatCents, type AllowanceViewPayload } from "@/lib/allowance/types";
 import { useDeviceClass, useMounted } from "@/lib/prefs";
 
-// A kid's own money, on their own day (Today, under their lens). It answers one
+// A kid's own money, on their own day (Home, when they are the one looking). It answers one
 // question, "how much do I have?", without opening the Greenlight app.
 //
 // The amount is one a parent typed in. Greenlight gives a household no way to
@@ -35,7 +35,13 @@ function whenEntered(iso: string, timeZone?: string): string {
   return then.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone });
 }
 
-export function AllowanceCard({ member }: { member: HouseholdMember }) {
+export function AllowanceCard({
+  member,
+  className = "",
+}: {
+  member: HouseholdMember;
+  className?: string;
+}) {
   const timeZone = useTimeZone();
   const mounted = useMounted();
   const shared = useDeviceClass() === "wall";
@@ -65,10 +71,12 @@ export function AllowanceCard({ member }: { member: HouseholdMember }) {
       : false;
 
   return (
-    <Card
+    <Tile
+      tone="leaf"
       title="My money"
       icon={PiggyBank}
-      className="wide:shrink-0"
+      watermark={PiggyBank}
+      className={className}
       stamp={<AsOf isStale={state.isStale} lastUpdated={state.lastUpdated} />}
       action={
         shared && balance?.cents != null ? (
@@ -86,26 +94,26 @@ export function AllowanceCard({ member }: { member: HouseholdMember }) {
       {state.isLoading ? (
         <Loading rows={1} />
       ) : state.failed ? (
-        <p className="py-2 text-body text-ink-faint">Can&rsquo;t load your money right now.</p>
+        <p className="py-2 text-body text-fg-soft">Can&rsquo;t load your money right now.</p>
       ) : !balance || balance.cents == null ? (
-        <p className="py-2 text-body text-ink-faint">
+        <p className="py-2 text-body text-fg-soft">
           No amount yet. Ask a parent to add it in Settings.
         </p>
       ) : (
         <div>
-          <p className="font-display text-date leading-none tabular-nums text-ink" aria-live="polite">
+          <p className="font-display text-giant font-medium leading-none tabular-nums text-fg" aria-live="polite">
             {show ? formatCents(balance.cents) : "$ • • •"}
           </p>
-          <p className="mt-2.5 flex items-center gap-1.5 text-label text-ink-soft">
-            <PenLine className="size-4 shrink-0 text-ink-faint" strokeWidth={2.25} aria-hidden />
+          <p className="mt-2.5 flex items-center gap-1.5 text-small text-fg-soft">
+            <PenLine className="size-4 shrink-0" strokeWidth={2.25} aria-hidden />
             A parent entered this {balance.asOf ? whenEntered(balance.asOf, timeZone) : ""}
             {balance.note ? ` · ${balance.note}` : ""}
           </p>
-          <p className="mt-1 text-stamp text-ink-faint">
+          <p className="mt-1 text-tiny text-fg-soft">
             Not synced with Greenlight{old ? ", and it's been a while. Ask a parent to check." : ". Spending since then isn't counted."}
           </p>
         </div>
       )}
-    </Card>
+    </Tile>
   );
 }

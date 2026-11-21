@@ -23,7 +23,7 @@ data (`NAV` in [`src/lib/config.ts`](src/lib/config.ts)):
 | **Chores** | The kids' checklists, and Maryann's one-task-at-a-time cleaning session. | Tada! |
 | **Kitchen** | The dinner plan with recipes, beside the shopping list. | Enchanted Spoon |
 
-**The lens ("who's looking").** The people across the header (a button on a
+**The lens ("who's looking").** The people in the bottom bar (a button on a
 phone) narrow every screen to one person: their events plus the family's, their
 school day, their chores, and for a kid their allowance. Nobody selected is the
 whole family's day. It is attribution, not a login (spec §6.3). A phone
@@ -359,12 +359,16 @@ a separate, separately-labeled thing.
 
 ## Screens
 
-The layout has two forms: **wide** (900px and up: a rail, a header, panels that
-scroll inside the frame) and **phone** (one column, a tab bar). On a wide screen
-the root font size follows the viewport (a 1920×1080 wall gets a 20px rem, a
-1280×720 panel 13.3px), so the wall keeps the same proportions at any
-resolution; sizes throughout are `rem`. The type scale and every color are
-tokens in `src/app/globals.css`, with a second set of values for the evening
+The screen is a scene (a sky that follows the time of day on Home, and each
+area's own color elsewhere) with colored tiles on it, and one bar at the bottom
+for who's looking, the five destinations and the countdown (spec §7). The
+layout has two forms: **wide** (900px and up: everything fits the frame and
+panels scroll inside it) and **phone** (one scrolling column, a floating tab
+bar). On a wide screen the root font size follows the viewport (a 1920×1080
+wall gets a 20px rem, a 1280×720 panel 13.3px), so the wall keeps the same
+proportions at any resolution; sizes throughout are `rem`. The type scale, the
+scenes, the tile colors and the text tokens are in `src/app/globals.css`, with
+a second set of values for the evening
 theme. Tune them there, not in components. Member colors are defined there as
 defaults (`--color-<slug>`), driven by `MEMBERS` and customizable in Settings
 (spec D3/D12).

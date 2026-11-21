@@ -5,10 +5,13 @@ import { appConfig } from "@/lib/config";
 // offers a calm way back to the resting view.
 export default function NotFound() {
   return (
-    <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-ground text-center text-ink">
-      <p className="font-display text-display text-ink-soft">Nothing here</p>
-      <Link href={appConfig.defaultRoute} className="text-body text-ink-faint underline">
-        Back to Calendar
+    <div className="scene flex h-dvh flex-col items-center justify-center gap-5 text-center text-fg">
+      <p className="font-display text-huge font-medium">Nothing here</p>
+      <Link
+        href={appConfig.defaultRoute}
+        className="rounded-full bg-accent px-6 py-3 text-body font-semibold text-on-accent"
+      >
+        Back home
       </Link>
     </div>
   );

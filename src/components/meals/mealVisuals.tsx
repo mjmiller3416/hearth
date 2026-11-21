@@ -21,9 +21,8 @@ import {
 
 // Visual identity for a meal — a deterministic color "tone" and a food icon,
 // derived from the meal's id and name. Enchanted Spoon sends no photo today
-// (imageUrl is null on every row), so the plan grid would otherwise be a wall of
-// identical beige tiles. Instead each meal gets an appetizing colored placeholder
-// with a food glyph. When Enchanted Spoon starts returning image URLs, MealImage
+// (imageUrl is null on every row), so every meal would otherwise look the same.
+// Instead each meal gets a vivid colored picture with a big white food glyph. When Enchanted Spoon starts returning image URLs, MealImage
 // renders the real photo and the placeholder simply stops showing — no other
 // change needed (spec: design for images, ship the image-less state first).
 //
@@ -31,11 +30,13 @@ import {
 // meal's color stays consistent from the grid to its card.
 
 export interface MealTone {
-  /** var(--tone-<name>-bg) — the soft tint. */
+  /** var(--tone-<name>-bg) — the vivid fill. Also the solid fallback. */
   bg: string;
-  /** var(--tone-<name>-ink) — the readable deep shade (text, icons, dots). */
+  /** var(--tone-<name>-ink) — its deep partner (dots and marks on paper). */
   ink: string;
-  /** A diagonal fill from bg into a deeper mix of the two, for placeholders. */
+  /** A diagonal fill from bg into ink, for pictures. Paint it as a
+   *  background-image OVER a background-color of `bg`: the wall's engine has
+   *  dropped gradients built from custom properties before. */
   gradient: string;
 }
 
@@ -57,7 +58,7 @@ function toneByName(name: string): MealTone {
   return {
     bg,
     ink,
-    gradient: `linear-gradient(135deg, ${bg}, color-mix(in oklab, ${bg}, ${ink} 22%))`,
+    gradient: `linear-gradient(140deg, ${bg} 10%, ${ink} 100%)`,
   };
 }
 
@@ -154,11 +155,13 @@ export function MealImage({
   const tone = mealTone(id);
   return (
     <div
-      className="flex h-full w-full items-center justify-center"
-      style={{ background: tone.gradient }}
+      className="relative flex h-full w-full items-center justify-center overflow-hidden"
+      style={{ backgroundColor: tone.bg, backgroundImage: tone.gradient }}
       aria-hidden
     >
-      <FoodGlyph name={name} className={iconClassName} style={{ color: tone.ink, opacity: 0.85 }} />
+      {/* A soft highlight, then the glyph. */}
+      <span className="absolute -left-[20%] -top-[40%] size-[90%] rounded-full bg-white/15" />
+      <FoodGlyph name={name} className={`relative text-white ${iconClassName}`} strokeWidth={1.4} />
     </div>
   );
 }

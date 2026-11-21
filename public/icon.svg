@@ -1,10 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Hearth">
-  <rect width="512" height="512" rx="112" fill="#f4efe4"/>
-  <!-- hearth flame: coral outer, amber inner — the household's warm mark -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#35b0f5"/>
+      <stop offset="0.5" stop-color="#2f7ff0"/>
+      <stop offset="1" stop-color="#4a55e2"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#2f7ff0"/>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <!-- hearth flame: warm gold outer, pale inner, on the day sky -->
   <path
-    d="M256 116 C 292 176, 340 200, 340 276 C 340 342, 302 396, 256 396 C 210 396, 172 342, 172 276 C 172 208, 220 178, 256 116 Z"
-    fill="#c4573f"/>
+    d="M256 108 C 296 174, 348 200, 348 282 C 348 352, 306 408, 256 408 C 206 408, 164 352, 164 282 C 164 208, 216 176, 256 108 Z"
+    fill="#ffc53d"/>
   <path
-    d="M256 216 C 276 250, 300 262, 300 302 C 300 336, 280 364, 256 364 C 232 364, 212 336, 212 302 C 212 274, 236 256, 256 216 Z"
-    fill="#c98a1e"/>
+    d="M256 222 C 278 258, 304 270, 304 312 C 304 348, 282 376, 256 376 C 230 376, 208 348, 208 312 C 208 282, 234 264, 256 222 Z"
+    fill="#fff6d6"/>
 </svg>

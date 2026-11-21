@@ -16,7 +16,8 @@
 > - **Display constraints:** §6.1 (two layouts instead of one fixed canvas),
 >   §6.3 (the lens replaces the calendar's member chips), §6.4 (shared and
 >   personal screens; the idle return that replaced the timed view schedule).
-> - **Design direction:** §7 (the token system and the evening theme).
+> - **Design direction:** §7 (the token system and the evening theme; replaced
+>   the same evening by the living-screen direction, see §7).
 > - **Storage:** D1 and the new D13 (parent-entered allowance balances).
 >
 > The ownership boundary did not move: Hearth still computes and decides
@@ -429,21 +430,41 @@ Hearth tells a shared screen (large, touch-only: the wall) from a personal one
 
 ## 7. Design direction
 
-Suggested, not locked — revise to taste.
+*(Replaced 2026-11-20. The first direction here was "a household ledger, not a
+dashboard": a warm paper ground, ink for everything, saturation reserved for
+people, almost no motion. Mitchell's verdict on the build was that it still
+felt like a dashboard and was drab. He asked for something lively and colorful
+in the spirit of an Echo Show, and for that design system to be dropped. What
+follows is what the code does now.)*
 
-*(Amended 2026-11-20: the direction below held, and was made into a system.
-Every color is a token with an evening-theme value; one overlay (a sheet), one
-card, one set of loading / not-connected / stale states; a display face
-(Fraunces) and a body face (Figtree) that now actually load. Primary actions
-are ink, so saturation still belongs to people alone.)*
+**Concept: a living screen, like a picture frame that knows the family's day.**
 
-**Concept: a household ledger, not a dashboard.** The failure mode for this kind of screen is looking like a startup analytics page: cards, pills, progress rings, accent gradients. This is a living room. It should read like something that belongs on a wall next to family photos.
+- **The scene.** The whole screen is a sky. On Home it follows the household
+  clock (dawn, day, dusk) with a sun that sits higher toward noon; every other
+  page takes its area's color (Calendar ocean, School sunrise, Chores grape,
+  Kitchen leaf, Settings slate). Soft lights drift across it slowly. In the
+  evening theme every scene becomes the night sky, with a moon and stars.
+- **Home is a frame, not a grid of equal cards.** The left third is the sky
+  itself: the clock as the largest thing on screen, the date, and tonight's
+  dinner as one big picture. The rest is a few tiles of different sizes.
+- **Tiles have their own color.** Deep glass for the calendar (member colors
+  read best on it), sun for school, grape for chores, ocean for cleaning, leaf
+  for money, and white paper for the shopping list and for every sheet and
+  form. Color now carries place as well as person.
+- **People keep their colors.** Member color is still how the calendar, the
+  school week and the chore lists are read (D3, D12). Avatars and color bars
+  carry a white rim so a person's color still reads on a tile of a similar hue.
+- **Type:** Outfit for the clock, titles and numerals; DM Sans for everything
+  else. Both load through next/font, so there are no font requests at runtime.
+- **Navigation:** no rail and no header. One bar at the bottom holds who's
+  looking, the five destinations and the countdown; a phone gets a floating tab
+  bar.
+- **Motion:** slow and ambient only (the drifting lights, the sun breathing, a
+  check popping in when a chore is done). Nothing slides or flashes, and
+  reduced-motion turns it all off.
 
-- **Palette:** a warm neutral ground with the member colors as the only saturated elements on screen. Member color is the primary information channel — everything else stays quiet so the colors carry meaning. Reserve saturation entirely for people. The colors are customizable in Settings (D12) but the discipline is not: nothing else on screen competes with them for saturation.
-- **Type:** one characterful face for dates, day names, and headings, set large; one clean face for everything else. The date should be the most confident thing on the calendar view.
-- **Structure:** generous whitespace, hairline rules rather than card borders and shadows. At six feet, borders read as noise and space reads as organization.
-- **Motion:** almost none. Content updates should cross-fade rather than slide or pop. Anything that moves in peripheral vision all day becomes an irritant by week two.
-- **Signature:** the member color system itself — used consistently and exclusively across calendar events, task columns, and list ownership, so the whole display can be parsed by color before a single word is read.
+D4 is untouched by any of this: the cleaning session still shows one task and
+nothing about what is left.
 
 ---
 

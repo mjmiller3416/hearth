@@ -15,24 +15,24 @@ function esc(value: string): string {
 const STYLE = `
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; background: #f4efe4; color: #2b2620;
+body { margin: 0; min-height: 100vh; background: #2f7ff0 linear-gradient(160deg, #35b0f5 0%, #2f7ff0 46%, #4a55e2 100%) fixed; color: #141a33;
   font: 17px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   display: flex; align-items: flex-start; justify-content: center; padding: 48px 16px; }
-main { width: 100%; max-width: 420px; background: #fbf8f1; border: 1px solid #e4ddcc;
-  border-radius: 14px; padding: 28px 24px; }
-h1 { font: 600 28px/1.2 Georgia, "Times New Roman", serif; margin: 0 0 4px; }
-.brand { color: #9a917f; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 18px; }
+main { width: 100%; max-width: 420px; background: #fff; border: 0;
+  border-radius: 24px; padding: 28px 24px; box-shadow: 0 24px 60px -24px rgba(6,10,40,.6); }
+h1 { font: 600 28px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0 0 4px; }
+.brand { color: #8791ae; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 18px; }
 p { margin: 0 0 14px; }
-.soft { color: #6f675a; font-size: 15px; }
+.soft { color: #4a5475; font-size: 15px; }
 label { display: block; font-weight: 600; margin: 18px 0 6px; }
 input[type=password] { width: 100%; font: inherit; padding: 12px 14px; border-radius: 10px;
-  border: 1px solid #d6cdb8; background: #fff; color: #2b2620; }
-input[type=password]:focus { outline: 2px solid #8354c9; outline-offset: 1px; }
-.error { background: #fbe4e1; color: #c14840; border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; }
+  border: 1px solid #c8d0e2; background: #fff; color: #141a33; }
+input[type=password]:focus { outline: 2px solid #3f5bff; outline-offset: 1px; }
+.error { background: #fde6e2; color: #d63a2b; border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; }
 .actions { display: flex; gap: 12px; margin-top: 22px; }
-button { flex: 1; font: inherit; font-weight: 600; padding: 13px 16px; border-radius: 10px; cursor: pointer; }
-.allow { background: #8354c9; color: #fff; border: 1px solid #6c3fac; }
-.cancel { order: -1; background: transparent; color: #2b2620; border: 1px solid #d6cdb8; }
+button { flex: 1; font: inherit; font-weight: 600; padding: 13px 16px; border-radius: 999px; cursor: pointer; }
+.allow { background: #3f5bff; color: #fff; border: 1px solid #3f5bff; }
+.cancel { order: -1; background: #eef1f9; color: #141a33; border: 1px solid #eef1f9; }
 `;
 
 function shell(title: string, body: string): string {

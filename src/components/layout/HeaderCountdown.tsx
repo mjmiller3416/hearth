@@ -8,12 +8,12 @@ import { countdownParts, countdownRemainingMs } from "@/lib/calendar/event";
 import { useCountdownEvent } from "@/components/common/Countdown";
 import { useTextOn } from "@/components/common/ColorProvider";
 import { useTimeZone } from "@/components/common/TimeZone";
-import { tint } from "@/components/ui/Avatar";
+import { ON_LIGHT } from "@/components/ui/Avatar";
 
 // The live countdown: the household's soonest countdown event (D10), counting
-// down by days, hours, minutes and seconds to its start. A pill tinted and
-// ringed in the event's color, in the header on a wide screen and at the top of
-// Today on a phone.
+// down by days, hours, minutes and seconds to its start. A glass pill carrying
+// the event's color, in the bottom bar on a wide screen and at the top of Home
+// on a phone.
 //
 // It ticks every second by request (the household asked for a real timer). It
 // only exists while a countdown event does, so a screen with no countdown set
@@ -34,7 +34,7 @@ function Segment({ value, unit }: { value: string | number; unit: string }) {
   return (
     <span className="flex items-baseline">
       <span>{value}</span>
-      <span className="ml-0.5 font-body text-stamp font-semibold text-ink-soft">{unit}</span>
+      <span className="ml-0.5 font-body text-tiny font-semibold text-fg-soft">{unit}</span>
     </span>
   );
 }
@@ -67,20 +67,19 @@ function Ticker({ event, className }: { event: CalendarEvent; className: string 
 
   return (
     <div
-      className={`flex min-w-0 max-w-full items-center gap-3 rounded-full py-1 pl-1 pr-5 ${className}`}
-      style={{ backgroundColor: tint(color, 16), boxShadow: `inset 0 0 0 2px ${fill}` }}
+      className={`dock flex h-[3.75rem] min-w-0 max-w-full items-center gap-3 rounded-full py-1 pl-2 pr-5 ${className}`}
       role="timer"
       aria-label={`Countdown to ${event.title}`}
     >
       <span
-        className="flex size-9 shrink-0 items-center justify-center rounded-full"
-        style={{ backgroundColor: fill, color: textOn(color) === "dark" ? "#27221c" : "#ffffff" }}
+        className="flex size-11 shrink-0 items-center justify-center rounded-full shadow-[0_0_0_2px_rgba(255,255,255,0.75)]"
+        style={{ backgroundColor: fill, color: textOn(color) === "dark" ? ON_LIGHT : "#ffffff" }}
         aria-hidden
       >
         <Hourglass className="size-5" strokeWidth={2.25} />
       </span>
-      <span className="min-w-0 truncate text-label font-semibold text-ink">{event.title}</span>
-      <span className="flex shrink-0 items-baseline gap-2 font-display text-title leading-none tabular-nums text-ink">
+      <span className="min-w-0 truncate text-small font-semibold text-fg">{event.title}</span>
+      <span className="flex shrink-0 items-baseline gap-2 font-display text-lead font-medium leading-none tabular-nums text-fg">
         {arrived ? (
           "Today"
         ) : (

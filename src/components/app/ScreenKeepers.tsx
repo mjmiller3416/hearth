@@ -55,7 +55,7 @@ export function ThemeKeeper() {
       document.documentElement.dataset.theme = theme;
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", theme === "dark" ? "#1b1815" : "#f5f0e6");
+        ?.setAttribute("content", theme === "dark" ? "#0d1030" : "#2f7ff0");
     };
     apply();
     const interval = setInterval(apply, 60_000);

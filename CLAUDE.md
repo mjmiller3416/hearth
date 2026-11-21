@@ -35,7 +35,7 @@ Run from PowerShell, or from WSL as
   mock on and runs the connector end to end (OAuth discovery, DCR, consent,
   tokens, refresh, revoke, MCP tool calls) plus the wall routes, including the
   allowance PIN rules. Uses a throwaway `HEARTH_DATA_DIR`. ~1 minute.
-- `npm run lint`: clean (0 errors) as of the 2026-11-20 redesign; keep it that
+- `npm run lint`: clean (0 errors) as of 2026-11-20; keep it that
   way. The rules that bite: no `setState` straight in an effect body (use
   `useMounted()`/`usePref()` from `src/lib/prefs.ts`, which read through
   `useSyncExternalStore`, or do the update in a callback such as `useUpstream`'s
@@ -62,9 +62,12 @@ Run from PowerShell, or from WSL as
 
 - Destinations are `NAV` in `src/lib/config.ts` (Today `/`, Calendar, School,
   Chores, Kitchen; exactly five, because the same list is the phone's tab bar)
-  plus Settings. The old addresses redirect in `next.config.ts`. The frame
-  (rail + header on a wide screen, top bar + tab bar on a phone, the lens) is
-  `src/components/app/AppShell.tsx`.
+  plus Settings. The old addresses redirect in `next.config.ts`. The frame is
+  `src/components/app/AppShell.tsx`: the scene, the page, and one bottom bar
+  (people/lens, the dock, the countdown, Settings) on a wide screen; a top line
+  and a floating tab bar on a phone. There is no rail and no header.
+  `Backdrop.tsx` picks the scene (time of day on Home, the area's color
+  elsewhere). Home ("Today" in `NAV`) is `src/components/home/HomeView.tsx`.
 - `src/app/(protected)/<view>/page.tsx`: one per destination; each awaits
   `requireAuthorizedPage()` first and renders a client view from
   `src/components/<area>/`. A server page can't hand a lucide icon (or any
@@ -85,9 +88,10 @@ Run from PowerShell, or from WSL as
   there, not in a view. They poll with `useUpstream` (keeps last good data,
   stale after two failures, refetches when the page becomes visible; `onData`
   is where optimistic state is retired).
-- `src/components/ui/`: the shared pieces. `Card` with `SourceGate` (the
-  loading / not connected / can't reach states every source shares), `Sheet`
-  (the one overlay: bottom sheet on a phone, centered on a wide screen),
+- `src/components/ui/`: the shared pieces. `Tile` (tones: glass, ocean, sun,
+  grape, leaf, paper) with `SourceGate` (the loading / not connected / can't
+  reach states every source shares), `Sheet` (the one overlay, always paper:
+  bottom sheet on a phone, centered on a wide screen),
   `Button`/`Segmented`/`Toggle`, `Avatar`, `Page`, `Keypad`.
 - The lens ("who's looking") and the household are `useHousehold()`
   (`src/components/app/Household.tsx`); `src/lib/household.ts` maps each member
@@ -100,29 +104,52 @@ Run from PowerShell, or from WSL as
 
 ## Design system (src/app/globals.css)
 
+Rebuilt 2026-11-20 at Mitchell's request ("lively, colorful, like an Echo
+Show; drop the old design system"). The paper-and-ink tokens (`ink`, `surface`,
+`ground`, `hairline`, `ember`, `text-stamp/label/title/display/heading/date`)
+are gone; don't reintroduce them. Spec §7 has the direction.
+
+- Three layers: the **scene** (`.scene` + `.scene-dawn/day/dusk` on Home,
+  `.scene-ocean/sun/grape/leaf/slate` per area), **tiles** (`.tile` +
+  `.tile-glass/ocean/sun/grape/leaf`, or `.paper`), and people's colors on top.
+- Text tokens are CONTEXTUAL: `fg`, `fg-soft`, `fg-faint`, `fill`, `fill-2`,
+  `raised`, `line`, `line-strong`, `accent`/`on-accent`, `good`, `bad` are
+  defined for text on color, and `.paper` redefines the same names for dark
+  text on a sheet. Write components with `text-fg` / `bg-fill` and they read
+  correctly on a tile and in a sheet. `.on-color` switches back for a colored
+  block inside paper. Fixed tokens: `paper`, `spark` (the "now" marker),
+  `night` (dark text on a light fill), `scrim`.
+- Type scale: `text-tiny`, `small`, `body`, `lead`, `big`, `huge`, `giant`,
+  `clock`. Fonts: Outfit (`font-display`) and DM Sans (body).
 - Two layouts, one breakpoint: `wide:` is 900px and up. Phone-first classes,
   `wide:` for the wall/desktop. On a wide screen the page fills the frame and
-  panels scroll inside it (`wide:h-full`, `wide:overflow-y-auto`); a phone
+  panels scroll inside it (`wide:min-h-0`, `wide:overflow-y-auto`); a phone
   page-scrolls.
 - On a wide screen the ROOT FONT SIZE scales with the viewport
   (`min(100vw/96, 100vh/54)`, so 20px at 1920×1080 and 13.3px at 1280×720).
   Size everything in rem (Tailwind spacing already is) and the wall keeps its
   proportions at any resolution. Never use px for layout.
-- Every color is a token with a second value under `:root[data-theme="dark"]`
-  (the evening theme). Use `text-ink`, `bg-surface`, `text-on-ink`, `bg-scrim`
-  and so on; never a hex in a component. The exception is text ON a member
-  color, which is a fixed `#27221c` or `#ffffff` from `useTextOn()`, because
-  member colors don't change with the theme.
-- Saturation is reserved for people (spec §7): primary actions are ink, not a
-  brand color. `--color-ember` is only the logo and the "now" marker.
+- Evening: `:root[data-theme="dark"]` turns every scene into the night sky,
+  deepens the tiles and makes paper slate. `<html data-theme>` is set before
+  paint by the inline script in `src/app/layout.tsx` and kept right by
+  `ThemeKeeper`; the two must agree.
+- Text ON a member color is a fixed `ON_LIGHT` (`src/components/ui/Avatar.tsx`)
+  or `#ffffff` from `useTextOn()`, because member colors don't change with the
+  theme. Avatars and color bars carry a white rim so they read on a tile of a
+  similar hue. `tint()` mixes a member color with transparent.
+- Every scene and tile gradient is written with literal colors over a solid
+  `background-color`: the wall's WebView once dropped a gradient built from
+  custom properties and the fill vanished. Meal pictures do use variables in a
+  gradient, so they always set `backgroundColor` under `backgroundImage`. Event
+  chips still paint bands with `clip-path` over solid fills.
+- A `.tile` is its own stacking context (`isolation`), and a glass tile's
+  `backdrop-filter` makes it the containing block for `position: fixed`
+  children. Anything that must cover the screen from inside a tile (the wall
+  keyboard in `ShoppingPanel`) is portaled to `<body>`.
 - The font variables are on `<html>`, not `<body>`: `--font-display` and
-  `--font-body` are defined at `:root` and must resolve there (on `<body>` they
-  silently fell back to system fonts for the app's whole first life).
-- `<html data-theme>` is set before paint by the inline script in
-  `src/app/layout.tsx` and kept right by `ThemeKeeper`; the two must agree.
-- The wall's WebView is modern enough for `color-mix`, `dvh` and Tailwind v4,
-  but event chips still paint bands with `clip-path` over solid fills, not
-  gradients with custom properties (those vanished on the wall once).
+  `--font-body` are defined at `:root` and must resolve there.
+- Not yet seen on the real wall hardware: the drifting lights and
+  `backdrop-filter` are the things to check there first if it feels slow.
 
 ## Storage (the two files Hearth keeps)
 

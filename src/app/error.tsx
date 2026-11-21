@@ -22,9 +22,9 @@ export default function Error({
   }, [error, reset]);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 bg-ground text-center">
-      <p className="font-display text-display text-ink-soft">One moment…</p>
-      <p className="text-body text-ink-faint">Reconnecting.</p>
+    <div className="flex h-full min-h-[60dvh] flex-col items-center justify-center gap-3 text-center text-fg">
+      <p className="font-display text-huge font-medium">One moment…</p>
+      <p className="text-body text-fg-soft">Reconnecting.</p>
     </div>
   );
 }

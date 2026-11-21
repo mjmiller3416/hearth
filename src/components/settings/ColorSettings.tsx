@@ -1,5 +1,6 @@
 "use client";
 
+import { ON_LIGHT } from "@/components/ui/Avatar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
@@ -63,21 +64,21 @@ export function ColorSettings({ entries }: { entries: ColorEntry[] }) {
               onClick={() => setEditingSlug(entry.slug)}
               aria-label={`Change ${entry.label}'s color`}
               aria-haspopup="dialog"
-              className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-surface-2 px-4 text-left ring-1 ring-inset ring-hairline active:bg-ground-2"
+              className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-fill px-4 text-left active:bg-fill-2"
             >
               <span
                 className="size-8 shrink-0 rounded-full"
                 style={{ backgroundColor: hexFor(selection[entry.slug]) }}
                 aria-hidden
               />
-              <span className="flex-1 text-body text-ink">{entry.label}</span>
+              <span className="flex-1 text-body text-fg">{entry.label}</span>
             </button>
           </li>
         ))}
       </ul>
 
       {error && (
-        <p role="alert" className="mt-3 text-label text-bad">
+        <p role="alert" className="mt-3 text-small text-bad">
           {error}
         </p>
       )}
@@ -97,9 +98,9 @@ export function ColorSettings({ entries }: { entries: ColorEntry[] }) {
                     aria-pressed={on}
                     onClick={() => void choose(editing.slug, sw.id)}
                     className={`flex size-14 items-center justify-center rounded-full transition-transform active:scale-95 ${
-                      on ? "ring-[3px] ring-ink ring-offset-2 ring-offset-surface" : ""
+                      on ? "ring-[3px] ring-accent ring-offset-2 ring-offset-paper" : ""
                     }`}
-                    style={{ backgroundColor: sw.hex, color: sw.text === "dark" ? "#27221c" : "#ffffff" }}
+                    style={{ backgroundColor: sw.hex, color: sw.text === "dark" ? ON_LIGHT : "#ffffff" }}
                   >
                     {on && <Check className="size-7" strokeWidth={3} aria-hidden />}
                   </button>

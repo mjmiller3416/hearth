@@ -15,7 +15,7 @@ import { countdownDays, countdownLabel } from "@/lib/calendar/event";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { Avatar, FamilyAvatar } from "@/components/ui/Avatar";
 import { Button, IconButton } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/Tile";
 import { Sheet, SheetBody, SheetFooter, SheetHeader } from "@/components/ui/Sheet";
 import { bandsFor, eventPeople, EventRow } from "./EventChip";
 import { EventForm } from "./EventForm";
@@ -191,10 +191,10 @@ function DaySheet({
 function InfoRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-center gap-3.5">
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-soft ring-1 ring-inset ring-hairline">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-fill text-accent">
         {icon}
       </span>
-      <div className="min-w-0 text-body text-ink">{children}</div>
+      <div className="min-w-0 text-body text-fg">{children}</div>
     </div>
   );
 }
@@ -260,7 +260,7 @@ function EventSheet({
               ))}
             </span>
           ) : (
-            <span className="text-ink-soft">No one assigned</span>
+            <span className="text-fg-soft">No one assigned</span>
           )}
         </InfoRow>
         {event.countdown && (

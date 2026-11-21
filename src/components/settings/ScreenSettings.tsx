@@ -22,7 +22,7 @@ export function ScreenSettings() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-body text-ink">Appearance</span>
+          <span className="text-body text-fg">Appearance</span>
           <Segmented
             label="Appearance"
             value={theme}
@@ -34,16 +34,16 @@ export function ScreenSettings() {
             ]}
           />
         </div>
-        <p className="text-label text-ink-faint">
+        <p className="text-small text-fg-faint">
           {device === "wall"
             ? `Auto dims this screen for the evening, ${shortTime(NIGHT_START)} PM to ${shortTime(NIGHT_END)} AM.`
             : "Auto follows this device's own light or dark setting."}
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 border-t border-hairline pt-4">
+      <div className="flex flex-col gap-2 border-t border-line pt-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-body text-ink">This screen is</span>
+          <span className="text-body text-fg">This screen is</span>
           <Segmented
             label="Screen type"
             value={forced}
@@ -55,7 +55,7 @@ export function ScreenSettings() {
             ]}
           />
         </div>
-        <p className="text-label text-ink-faint">
+        <p className="text-small text-fg-faint">
           {device === "wall"
             ? "Treated as a shared screen: it returns to Today when left alone, forgets who was looking, types with the on-screen keyboard and keeps allowance amounts covered."
             : "Treated as a personal screen: it stays where you left it and remembers who's looking."}
@@ -100,9 +100,9 @@ async function probe(url: string): Promise<Health> {
 }
 
 const HEALTH: Record<Health, { label: string; className: string; Icon: typeof CircleCheck }> = {
-  checking: { label: "Checking…", className: "text-ink-faint", Icon: CircleDashed },
+  checking: { label: "Checking…", className: "text-fg-faint", Icon: CircleDashed },
   ok: { label: "Connected", className: "text-good", Icon: CircleCheck },
-  off: { label: "Not set up", className: "text-ink-faint", Icon: CircleDashed },
+  off: { label: "Not set up", className: "text-fg-faint", Icon: CircleDashed },
   down: { label: "Not answering", className: "text-bad", Icon: CircleAlert },
 };
 
@@ -134,16 +134,16 @@ export function Connections() {
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="flex flex-col divide-y divide-hairline">
+      <ul className="flex flex-col divide-y divide-line">
         {CONNECTIONS.map((c) => {
           const h = HEALTH[health[c.app] ?? "checking"];
           return (
             <li key={c.app} className="flex items-center gap-3 py-2.5">
               <span className="min-w-0 flex-1">
-                <span className="block text-body text-ink">{c.app}</span>
-                <span className="block text-label text-ink-faint">{c.powers}</span>
+                <span className="block text-body text-fg">{c.app}</span>
+                <span className="block text-small text-fg-faint">{c.powers}</span>
               </span>
-              <span className={`flex shrink-0 items-center gap-1.5 text-label font-semibold ${h.className}`}>
+              <span className={`flex shrink-0 items-center gap-1.5 text-small font-semibold ${h.className}`}>
                 <h.Icon className="size-5" strokeWidth={2.25} aria-hidden />
                 {h.label}
               </span>
@@ -152,7 +152,7 @@ export function Connections() {
         })}
       </ul>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-stamp text-ink-faint">
+        <span className="text-tiny text-fg-faint">
           {checkedAt
             ? `Checked at ${checkedAt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone })}`
             : " "}
@@ -162,7 +162,7 @@ export function Connections() {
           Check again
         </Button>
       </div>
-      <p className="text-label text-ink-faint">
+      <p className="text-small text-fg-faint">
         &ldquo;Not set up&rdquo; means that app&rsquo;s address or key isn&rsquo;t on the Hearth server.
         &ldquo;Not answering&rdquo; means it is, but the app didn&rsquo;t reply just now; Hearth keeps
         showing the last thing it heard and retries every minute.

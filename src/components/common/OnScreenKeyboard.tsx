@@ -46,7 +46,7 @@ function Key({
       onClick={onClick}
       aria-label={ariaLabel}
       style={{ flexGrow: grow, flexBasis: 0 }}
-      className={`flex h-14 min-w-0 items-center justify-center rounded-xl text-title font-medium transition-colors active:scale-95 ${className}`}
+      className={`flex h-14 min-w-0 items-center justify-center rounded-xl text-lead font-medium transition-colors active:scale-95 ${className}`}
     >
       {label}
     </button>
@@ -74,11 +74,11 @@ export function OnScreenKeyboard({
     if (shift && layer === "letters") setShift(false); // one-shot shift
   };
 
-  const base = "bg-surface text-ink shadow-[0_1px_0_var(--color-hairline-strong)]";
-  const accent = "bg-ground-2 text-ink-soft";
+  const base = "bg-fill text-fg shadow-[0_1px_0_var(--color-line-strong)]";
+  const accent = "bg-fill-2 text-fg-soft";
 
   return (
-    <div className="flex flex-col gap-2 rounded-t-3xl border-t border-hairline bg-ground px-4 pb-5 pt-4 shadow-pop">
+    <div className="paper flex flex-col gap-2 px-4 pb-5 pt-3">
       {rows.map((row, i) => (
         <div key={i} className="flex justify-center gap-1.5">
           {/* Shift sits at the left of the last letter row. */}
@@ -87,7 +87,7 @@ export function OnScreenKeyboard({
               ariaLabel="Shift"
               grow={1.5}
               onClick={() => setShift((s) => !s)}
-              className={shift ? "bg-ink text-on-ink" : accent}
+              className={shift ? "bg-accent text-on-accent" : accent}
               label={<ArrowBigUp className="size-7" strokeWidth={2} aria-hidden />}
             />
           )}
@@ -119,22 +119,22 @@ export function OnScreenKeyboard({
           grow={1.5}
           onClick={() => setLayer((l) => (l === "letters" ? "symbols" : "letters"))}
           className={accent}
-          label={<span className="text-label font-semibold">{layer === "letters" ? "123" : "ABC"}</span>}
+          label={<span className="text-small font-semibold">{layer === "letters" ? "123" : "ABC"}</span>}
         />
         <Key
           ariaLabel="Space"
           grow={5}
           onClick={() => onInsert(" ")}
           className={base}
-          label={<span className="text-label text-ink-faint">space</span>}
+          label={<span className="text-small text-fg-faint">space</span>}
         />
         <Key
           ariaLabel={doneLabel}
           grow={2}
           onClick={onDone}
-          className="bg-ink text-on-ink"
+          className="bg-accent text-on-accent"
           label={
-            <span className="flex items-center gap-1.5 text-label font-semibold">
+            <span className="flex items-center gap-1.5 text-small font-semibold">
               <ChevronDown className="size-6" strokeWidth={2.25} aria-hidden />
               {doneLabel}
             </span>

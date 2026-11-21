@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-// The frame every screen shares: a confident title on the left, that screen's
-// controls on the right, the content beneath. On a wide screen the page fills
-// the frame's height and its panels scroll inside it; on a phone the whole page
+// The frame every page but Home shares: a big title on the scene, that page's
+// controls beside it, the content beneath. On a wide screen the page fills the
+// frame's height and its panels scroll inside it; on a phone the whole page
 // scrolls and the controls wrap under the title.
 
 export function Page({
@@ -18,15 +18,15 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <section className="flex flex-col px-4 pb-6 pt-2 wide:h-full wide:px-8 wide:pb-7 wide:pt-6">
+    <section className="flex flex-col px-4 pb-6 pt-1 wide:h-full wide:px-7 wide:pb-2 wide:pt-6">
       <header className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-3 wide:mb-5">
         <div className="min-w-0">
           {eyebrow && (
-            <p className="mb-1 text-label font-semibold uppercase tracking-[0.08em] text-ink-faint">
+            <p className="mb-1 text-small font-semibold uppercase tracking-[0.12em] text-fg-soft">
               {eyebrow}
             </p>
           )}
-          <h1 className="font-display text-heading leading-none text-ink">{title}</h1>
+          <h1 className="font-display text-huge font-medium leading-none text-fg">{title}</h1>
         </div>
         {controls && (
           <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-2">

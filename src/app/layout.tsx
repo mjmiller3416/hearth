@@ -1,20 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Figtree, Fraunces } from "next/font/google";
+import { DM_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import { KioskGuards } from "@/components/common/KioskGuards";
 import { appConfig, NIGHT_END, NIGHT_START } from "@/lib/config";
 
-// A characterful display face for dates, headings and big numerals; a friendly,
-// very legible face for everything else (spec §7). Loaded via next/font so there
-// are no external font requests at runtime: a wall that briefly loses its
-// network keeps its type.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+// A clean geometric face for the clock, titles and big numerals; a friendly,
+// very legible face for everything else. Loaded via next/font so there are no
+// external font requests at runtime: a wall that briefly loses its network
+// keeps its type.
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
   display: "swap",
 });
-const figtree = Figtree({
-  variable: "--font-figtree",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
   display: "swap",
 });
@@ -40,7 +40,7 @@ export const viewport: Viewport = {
   minimumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#f5f0e6",
+  themeColor: "#2f7ff0",
 };
 
 export const metadata: Metadata = {
@@ -63,7 +63,7 @@ export default function RootLayout({
     // The font variables go on <html>: the theme's --font-display / --font-body
     // are defined at :root and reference them, so they must resolve there. (On
     // <body> they were out of reach, and the app fell back to system fonts.)
-    <html lang="en" suppressHydrationWarning className={`${fraunces.variable} ${figtree.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${dmSans.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

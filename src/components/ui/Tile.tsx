@@ -6,21 +6,38 @@ import { ChevronRight, Clock3, PlugZap, RefreshCw, type LucideIcon } from "lucid
 import { useTimeZone } from "@/components/common/TimeZone";
 import type { UpstreamState } from "@/hooks/useUpstream";
 
-// The card every piece of household information sits in, plus the three states
-// every integration shares. A source that is still loading, not set up, or not
-// answering looks the same on every screen and never takes its neighbors down
-// with it (spec §6.2): the rest of the page keeps working.
+// The tile every piece of household information sits in, plus the three states
+// every integration shares. A tile has a tone (its color); the text inside it
+// uses the contextual tokens (text-fg, bg-fill, ...), so the same content reads
+// correctly on any tone, including paper (see globals.css).
+//
+// A source that is still loading, not set up, or not answering looks the same
+// on every screen and never takes its neighbors down with it (spec §6.2).
 
-export function Card({
+export type TileTone = "glass" | "ocean" | "sun" | "grape" | "leaf" | "paper";
+
+const TONES: Record<TileTone, string> = {
+  glass: "tile-glass",
+  ocean: "tile-ocean",
+  sun: "tile-sun",
+  grape: "tile-grape",
+  leaf: "tile-leaf",
+  paper: "tile-paper paper",
+};
+
+export function Tile({
+  tone = "glass",
   title,
   icon: Icon,
   href,
   action,
   stamp,
+  watermark: Watermark,
   children,
   className = "",
   bodyClassName = "",
 }: {
+  tone?: TileTone;
   title?: ReactNode;
   icon?: LucideIcon;
   /** Makes the title a link to the full view. */
@@ -29,31 +46,34 @@ export function Card({
   action?: ReactNode;
   /** A stale "as of" stamp (see <AsOf>). */
   stamp?: ReactNode;
+  /** A big faint icon in the corner, for character. */
+  watermark?: LucideIcon;
   children: ReactNode;
   className?: string;
   bodyClassName?: string;
 }) {
   const heading = (
     <span className="flex min-w-0 items-center gap-2.5">
-      {Icon && <Icon className="size-5 shrink-0 text-ink-faint" strokeWidth={2} aria-hidden />}
-      <span className="truncate text-label font-semibold uppercase tracking-[0.08em] text-ink-soft">
-        {title}
-      </span>
-      {href && <ChevronRight className="size-4 shrink-0 text-ink-faint" strokeWidth={2.5} aria-hidden />}
+      {Icon && (
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-fill-2">
+          <Icon className="size-[1.15rem]" strokeWidth={2.25} aria-hidden />
+        </span>
+      )}
+      <span className="truncate font-display text-lead font-medium leading-none">{title}</span>
+      {href && <ChevronRight className="size-5 shrink-0 text-fg-faint" strokeWidth={2.5} aria-hidden />}
     </span>
   );
   return (
-    <section
-      className={`flex min-h-0 flex-col rounded-[1.5rem] bg-surface shadow-card ring-1 ring-hairline/70 ${className}`}
-    >
+    <section className={`tile flex min-h-0 flex-col ${TONES[tone]} ${className}`}>
+      {Watermark && <Watermark className="watermark" strokeWidth={1.5} aria-hidden />}
       {title && (
         <header className="flex shrink-0 items-center justify-between gap-3 px-5 pb-1 pt-4 wide:px-6 wide:pt-5">
           {href ? (
-            <Link href={href} className="-my-2 flex min-w-0 items-center py-2">
+            <Link href={href} className="-my-2 flex min-w-0 items-center py-2 text-fg">
               {heading}
             </Link>
           ) : (
-            <h2 className="flex min-w-0 items-center">{heading}</h2>
+            <h2 className="flex min-w-0 items-center text-fg">{heading}</h2>
           )}
           <span className="flex shrink-0 items-center gap-3">
             {stamp}
@@ -61,7 +81,7 @@ export function Card({
           </span>
         </header>
       )}
-      <div className={`min-h-0 flex-1 px-5 pb-5 pt-2 wide:px-6 ${bodyClassName}`}>{children}</div>
+      <div className={`min-h-0 flex-1 px-5 pb-5 pt-3 wide:px-6 ${bodyClassName}`}>{children}</div>
     </section>
   );
 }
@@ -82,7 +102,10 @@ export function AsOf({
     timeZone,
   });
   return (
-    <span className="inline-flex items-center gap-1.5 text-stamp text-ink-faint" role="status">
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-fill px-2.5 py-1 text-tiny text-fg-soft"
+      role="status"
+    >
       <Clock3 className="size-4" aria-hidden />
       as of {time}
     </span>
@@ -96,7 +119,7 @@ export function Loading({ rows = 3 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}
-          className="h-11 rounded-2xl bg-surface-2 [animation:hearth-shimmer_1.6s_ease-in-out_infinite]"
+          className="h-11 rounded-2xl bg-fill [animation:hearth-shimmer_1.6s_ease-in-out_infinite]"
           style={{ animationDelay: `${i * 120}ms`, width: `${92 - i * 14}%` }}
         />
       ))}
@@ -118,19 +141,19 @@ export function EmptyState({
   action?: ReactNode;
   compact?: boolean;
 }) {
-  // Compact (a card on Today): one quiet row, so a source that's down or empty
+  // Compact (a tile on Home): one quiet row, so a source that's down or empty
   // takes a line, not the screen.
   if (compact) {
     return (
-      <div className="flex items-center gap-3 py-2">
+      <div className="flex items-center gap-3 py-1.5">
         {Icon && (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-faint">
-            <Icon className="size-5" strokeWidth={1.75} aria-hidden />
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-fill text-fg-soft">
+            <Icon className="size-5" strokeWidth={2} aria-hidden />
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-body leading-snug text-ink-soft">{title}</p>
-          {children && <p className="text-label text-ink-faint">{children}</p>}
+          <p className="text-body leading-snug text-fg">{title}</p>
+          {children && <p className="text-small text-fg-soft">{children}</p>}
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>
@@ -139,13 +162,13 @@ export function EmptyState({
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-center">
       {Icon && (
-        <span className="mb-1 flex size-12 items-center justify-center rounded-full bg-surface-2 text-ink-faint">
-          <Icon className="size-6" strokeWidth={1.75} aria-hidden />
+        <span className="mb-2 flex size-16 items-center justify-center rounded-full bg-fill text-fg">
+          <Icon className="size-8" strokeWidth={1.75} aria-hidden />
         </span>
       )}
-      <p className="font-display text-title text-ink-soft">{title}</p>
-      {children && <p className="max-w-[28rem] text-label text-ink-faint">{children}</p>}
-      {action && <div className="mt-2">{action}</div>}
+      <p className="font-display text-big text-fg">{title}</p>
+      {children && <p className="max-w-[28rem] text-body text-fg-soft">{children}</p>}
+      {action && <div className="mt-3">{action}</div>}
     </div>
   );
 }
@@ -192,7 +215,7 @@ export function LoadError({
         <button
           type="button"
           onClick={onRetry}
-          className="min-h-10 rounded-full bg-surface-2 px-4 text-label font-semibold text-ink ring-1 ring-inset ring-hairline-strong"
+          className="min-h-10 rounded-full bg-fill-2 px-4 text-small font-semibold text-fg active:scale-95"
         >
           Try again
         </button>

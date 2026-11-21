@@ -1,175 +1,209 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   Hearth theme: warm paper and ink, with the family's colors as the only
-   saturated things on screen (spec §7). Every color the app uses is a token
-   here, so the evening (dark) theme is a second set of values and nothing in a
-   component names a hex.
+   Hearth's look: a living screen, not a dashboard.
 
-   Two layouts share these tokens:
-     phone  (< 900px wide)  one column, bottom tab bar, normal page scroll
-     wide   (>= 900px)      rail + header, panels that scroll inside the frame
-   The `wide:` variant below switches between them.
+   Three layers, back to front:
+
+     scene   the whole screen is a sky that changes with the time of day (dawn,
+             day, dusk, night) on Home, and takes each area's own color on the
+             other pages. Soft lights drift across it.
+     tiles   what the family reads sits in rounded tiles with their own color
+             (sun for school, grape for chores, leaf for the kitchen and money,
+             a deep glass for the calendar) or on white "paper" (the shopping
+             list, every sheet and form).
+     people  each person keeps their own color on top of all of it.
+
+   Text color is CONTEXTUAL. The tokens below (`fg`, `fill`, `line`, `accent`,
+   ...) are defined for text on color; `.paper` redefines the same names for
+   text on paper. A component written with `text-fg` / `bg-fill` therefore
+   reads correctly on a tile, on the scene and inside a sheet without knowing
+   which one it is in. `.on-color` switches back (a colored block inside paper).
+
+   Two layouts share all of it:
+     phone  (< 900px wide)  one column, floating tab bar, normal page scroll
+     wide   (>= 900px)      everything fits the frame; panels scroll inside it
    ============================================================================ */
-@theme {
+@theme static {
   --breakpoint-wide: 56.25rem; /* 900px; media queries ignore the root font size */
 
-  /* ── Ground & surfaces ── */
-  --color-ground: #f5f0e6; /* page background */
-  --color-ground-2: #ece5d6; /* inset wells, pressed states */
-  --color-surface: #fffdf8; /* cards, sheets */
-  --color-surface-2: #f8f4ea; /* rows and fields inside a card */
+  /* ── Contextual tokens: the values for text on color ── */
+  --color-fg: #ffffff; /* primary text */
+  --color-fg-soft: rgba(255, 255, 255, 0.8); /* secondary text */
+  --color-fg-faint: rgba(255, 255, 255, 0.58); /* timestamps, placeholders */
+  --color-fill: rgba(255, 255, 255, 0.13); /* quiet control fill, wells */
+  --color-fill-2: rgba(255, 255, 255, 0.24); /* pressed, stronger wells */
+  --color-raised: rgba(255, 255, 255, 0.28); /* something lifted off its container */
+  --color-line: rgba(255, 255, 255, 0.16);
+  --color-line-strong: rgba(255, 255, 255, 0.34);
+  --color-accent: #ffffff; /* the primary action */
+  --color-on-accent: #141a33;
+  --color-good: #8df5c8;
+  --color-good-soft: rgba(80, 230, 170, 0.24);
+  --color-bad: #ffd9d2;
+  --color-bad-soft: rgba(255, 86, 66, 0.38);
 
-  /* ── Ink ── */
-  --color-ink: #27221c; /* primary text, primary buttons */
-  --color-ink-soft: #645c50; /* secondary text */
-  --color-ink-faint: #958c7b; /* timestamps, placeholders */
-  --color-on-ink: #fffdf8; /* text on an ink fill */
-
-  /* ── Rules ── */
-  --color-hairline: #e3dccb;
-  --color-hairline-strong: #d0c6af;
-
-  /* ── Status (notices only; never decoration) ── */
-  --color-good: #1c7f6b;
-  --color-good-soft: #dcf1ea;
-  --color-bad: #b9402f;
-  --color-bad-soft: #f9e3dd;
-  --color-ember: #c2542d; /* the brand mark and the "now" marker */
-
-  /* ── Scrim behind sheets ── */
-  --color-scrim: rgba(39, 32, 22, 0.42);
+  /* ── Fixed tokens ── */
+  --color-paper: #ffffff; /* sheets, the shopping list, the keyboard */
+  --color-spark: #ffc53d; /* the "now" marker and the logo */
+  --color-scrim: rgba(8, 11, 32, 0.56);
+  --color-night: #141a33; /* dark text on a light fill (member colors, accent) */
 
   /* ── Fonts ── */
-  --font-display: var(--font-fraunces); /* dates, headings, big numerals */
-  --font-body: var(--font-figtree); /* everything else */
+  --font-display: var(--font-outfit); /* the clock, titles, big numerals */
+  --font-body: var(--font-dm-sans); /* everything else */
 
-  /* ── Type scale. The values are for the phone; the wide layout swaps them
-     below. Sizes are rem, and the root font size itself scales with a wide
-     viewport, so a wall panel gets wall-sized type without a second scale. ── */
-  --text-stamp: 0.75rem;
-  --text-stamp--line-height: 1.3;
-  --text-label: 0.875rem;
-  --text-label--line-height: 1.25;
+  /* ── Type scale. Phone values; the wide layout swaps them below. Sizes are
+     rem, and the root font size itself scales with a wide viewport, so the
+     wall gets wall-sized type without a second scale. ── */
+  --text-tiny: 0.75rem;
+  --text-tiny--line-height: 1.3;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.3;
   --text-body: 1rem;
   --text-body--line-height: 1.4;
-  --text-title: 1.25rem;
-  --text-title--line-height: 1.2;
-  --text-display: 1.6rem;
-  --text-display--line-height: 1.12;
-  --text-heading: 1.9rem;
-  --text-heading--line-height: 1.05;
-  --text-date: 2.6rem;
-  --text-date--line-height: 1;
+  --text-lead: 1.2rem;
+  --text-lead--line-height: 1.25;
+  --text-big: 1.55rem;
+  --text-big--line-height: 1.15;
+  --text-huge: 2rem;
+  --text-huge--line-height: 1.05;
+  --text-giant: 2.75rem;
+  --text-giant--line-height: 1;
+  --text-clock: 4.75rem;
+  --text-clock--line-height: 0.9;
 
-  --shadow-card: 0 1px 2px rgba(70, 52, 24, 0.05), 0 10px 28px -18px rgba(70, 52, 24, 0.28);
-  --shadow-pop: 0 2px 6px rgba(50, 36, 16, 0.08), 0 28px 70px -24px rgba(50, 36, 16, 0.5);
+  --shadow-tile: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 1.25rem 2.5rem -1.5rem rgba(6, 10, 40, 0.6);
+  --shadow-float: 0 0.25rem 0.75rem rgba(6, 10, 40, 0.18), 0 2rem 4.5rem -1.5rem rgba(6, 10, 40, 0.7);
 
-  --animate-rise: hearth-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-fade: hearth-fade-in 300ms ease-out;
+  --animate-rise: hearth-rise 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade: hearth-fade-in 320ms ease-out;
+  --animate-pop: hearth-pop 320ms cubic-bezier(0.3, 1.5, 0.5, 1);
 }
 
 /* The wide layout is drawn on a 96 x 54 rem frame: the root font size follows
    the tighter of the viewport's width and height, so a 1920x1080 wall gets a
    20px rem and everything (type, spacing, targets) keeps its proportions on a
-   1280x720 panel or a 2560x1440 monitor. Unlike the old fixed canvas it still
-   reflows: a wider panel gets wider columns, not black bars. */
+   1280x720 panel or a 2560x1440 monitor. Never use px for layout. */
 @media (min-width: 900px) {
   html {
     font-size: clamp(13px, min(1.0417vw, 1.8519vh), 26px);
   }
   :root {
-    --text-stamp: 0.8rem;
-    --text-label: 1rem;
-    --text-body: 1.3rem;
-    --text-title: 1.7rem;
-    --text-display: 2.3rem;
-    --text-heading: 2.9rem;
-    --text-date: 3.6rem;
+    --text-tiny: 0.8rem;
+    --text-small: 0.98rem;
+    --text-body: 1.22rem;
+    --text-lead: 1.55rem;
+    --text-big: 2.1rem;
+    --text-huge: 2.8rem;
+    --text-giant: 3.8rem;
+    --text-clock: 7.75rem;
   }
 }
 
-/* ============================================================================
-   Evening theme. Set by <html data-theme="dark"> (ThemeKeeper): the phone's own
-   dark mode, a wall after dusk, or the choice in Settings. A wall that glows
-   cream at 10pm in a dark living room is the one thing every owner of a wall
-   calendar complains about.
-   ============================================================================ */
-:root[data-theme="dark"] {
-  --color-ground: #1b1815;
-  --color-ground-2: #14110f;
-  --color-surface: #27231f;
-  --color-surface-2: #302b26;
-  --color-ink: #f3ecdf;
-  --color-ink-soft: #bdb3a2;
-  --color-ink-faint: #8c8374;
-  --color-on-ink: #1b1815;
-  --color-hairline: #3a342d;
-  --color-hairline-strong: #51493f;
-  --color-good: #6fd0b8;
-  --color-good-soft: #1f3a34;
-  --color-bad: #f0907d;
-  --color-bad-soft: #45251f;
-  --color-ember: #e58058;
-  --color-scrim: rgba(0, 0, 0, 0.6);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-pop: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
-  color-scheme: dark;
+/* ── Paper: the same token names, for dark text on a light sheet ── */
+.paper {
+  --color-fg: #141a33;
+  --color-fg-soft: #4a5475;
+  --color-fg-faint: #8791ae;
+  --color-fill: #eef1f9;
+  --color-fill-2: #dfe5f3;
+  --color-raised: #ffffff;
+  --color-line: #e4e8f2;
+  --color-line-strong: #c8d0e2;
+  --color-accent: #3f5bff;
+  --color-on-accent: #ffffff;
+  --color-good: #0b9a68;
+  --color-good-soft: #d6f7e8;
+  --color-bad: #d63a2b;
+  --color-bad-soft: #fde6e2;
+  background-color: var(--color-paper);
+  color: var(--color-fg);
+}
+
+/* ── Back to text on color, for a colored block that sits inside paper ── */
+.on-color {
+  --color-fg: #ffffff;
+  --color-fg-soft: rgba(255, 255, 255, 0.8);
+  --color-fg-faint: rgba(255, 255, 255, 0.58);
+  --color-fill: rgba(255, 255, 255, 0.13);
+  --color-fill-2: rgba(255, 255, 255, 0.24);
+  --color-raised: rgba(255, 255, 255, 0.28);
+  --color-line: rgba(255, 255, 255, 0.16);
+  --color-line-strong: rgba(255, 255, 255, 0.34);
+  --color-accent: #ffffff;
+  --color-on-accent: #141a33;
+  --color-good: #8df5c8;
+  --color-good-soft: rgba(80, 230, 170, 0.24);
+  --color-bad: #ffd9d2;
+  --color-bad-soft: rgba(255, 86, 66, 0.38);
+  color: var(--color-fg);
 }
 
 /* ============================================================================
-   Member colors: the only saturated elements on screen. Used through runtime
-   `var(--color-<slug>)` in inline styles, never through a Tailwind utility, so
-   they live in a plain :root block (Tailwind v4 drops @theme variables it can't
-   see a utility for). They mirror each person's own Google Calendar color and
-   can be changed in Settings (spec D12), which overrides these at :root.
+   Evening. Set by <html data-theme="dark"> (ThemeKeeper): a wall after dusk, a
+   phone in dark mode, or the choice in Settings. Every scene becomes the night
+   sky, tiles deepen, and paper turns to slate so nothing glows across a dark
+   room.
+   ============================================================================ */
+:root[data-theme="dark"] {
+  --color-paper: #171c33;
+  --color-scrim: rgba(2, 3, 14, 0.7);
+  --shadow-tile: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1.25rem 2.5rem -1.5rem rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .paper {
+  --color-fg: #eef1fc;
+  --color-fg-soft: #b3bbd6;
+  --color-fg-faint: #7d86a6;
+  --color-fill: #222948;
+  --color-fill-2: #2d3559;
+  --color-raised: #2f3860;
+  --color-line: #2a3152;
+  --color-line-strong: #3f486f;
+  --color-accent: #93a4ff;
+  --color-on-accent: #0f1430;
+  --color-good: #6fe0b4;
+  --color-good-soft: #17382f;
+  --color-bad: #ff9c8d;
+  --color-bad-soft: #47211d;
+}
+
+/* ============================================================================
+   Member colors: each person's own color, the same in every theme. Used through
+   runtime `var(--color-<slug>)` in inline styles. They mirror each person's
+   Google Calendar color and can be changed in Settings (spec D12), which
+   overrides these at :root.
    ============================================================================ */
 :root {
   --color-mitchell: #30b0b0;
   --color-maryann: #d81b60;
   --color-lincoln: #7cb342;
   --color-ollie: #039be5;
-  --color-neutral: #c9bfa8; /* untagged, no owning calendar */
+  --color-neutral: #b9c0d4; /* untagged, no owning calendar */
   --color-everyone: #f09300; /* the family calendar */
 }
 
 /* Food tones: a (bg, ink) pair per meal, picked from the meal id, for the
-   picture placeholder until Enchanted Spoon sends photos (mealVisuals.tsx). */
+   picture placeholder until Enchanted Spoon sends photos (mealVisuals.tsx).
+   `bg` is the vivid fill a white glyph sits on; `ink` is its deep partner. */
 :root {
-  --tone-peach-bg: #fce8d6;
-  --tone-peach-ink: #9a5b16;
-  --tone-berry-bg: #f9e1eb;
-  --tone-berry-ink: #ae3e6e;
-  --tone-lavender-bg: #ede6f8;
-  --tone-lavender-ink: #6c4fa8;
-  --tone-periwinkle-bg: #e4eafb;
-  --tone-periwinkle-ink: #4a5cb0;
-  --tone-mint-bg: #def2e6;
-  --tone-mint-ink: #1e7d58;
-  --tone-coral-bg: #fbe4e1;
-  --tone-coral-ink: #c14840;
-  --tone-teal-bg: #d9f4ee;
-  --tone-teal-ink: #128a76;
-  --tone-honey-bg: #fdecc9;
-  --tone-honey-ink: #97651a;
-}
-:root[data-theme="dark"] {
-  --tone-peach-bg: #4a3523;
-  --tone-peach-ink: #f3c08a;
-  --tone-berry-bg: #4a2836;
-  --tone-berry-ink: #f2a3c2;
-  --tone-lavender-bg: #382e4d;
-  --tone-lavender-ink: #c9b5f2;
-  --tone-periwinkle-bg: #2b3350;
-  --tone-periwinkle-ink: #aab8f5;
-  --tone-mint-bg: #213d30;
-  --tone-mint-ink: #8fdcb5;
-  --tone-coral-bg: #4b2a26;
-  --tone-coral-ink: #f5a79f;
-  --tone-teal-bg: #1d3d39;
-  --tone-teal-ink: #7fdccb;
-  --tone-honey-bg: #473818;
-  --tone-honey-ink: #f0cd7c;
+  --tone-peach-bg: #ff8a4c;
+  --tone-peach-ink: #c2410c;
+  --tone-berry-bg: #ef4e8b;
+  --tone-berry-ink: #b01e5c;
+  --tone-lavender-bg: #8b6cf6;
+  --tone-lavender-ink: #5b3fd1;
+  --tone-periwinkle-bg: #5b7cfa;
+  --tone-periwinkle-ink: #3350d4;
+  --tone-mint-bg: #2fc98b;
+  --tone-mint-ink: #0b8f5d;
+  --tone-coral-bg: #fb6f61;
+  --tone-coral-ink: #cf3a2d;
+  --tone-teal-bg: #1fb8b0;
+  --tone-teal-ink: #0b857f;
+  --tone-honey-bg: #f7a928;
+  --tone-honey-ink: #b56d05;
 }
 
 @layer base {
@@ -177,13 +211,15 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     overscroll-behavior: none;
-    background: var(--color-ground);
+    background: #2f7ff0;
+  }
+  html[data-theme="dark"] {
+    background: #0d1030;
   }
 
   body {
     font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-    background: var(--color-ground);
-    color: var(--color-ink);
+    color: var(--color-fg);
     overscroll-behavior: none;
     /* Touch-first: no selection, callout or double-tap zoom on a wall or a
        phone held in one hand. Inputs opt back in below. */
@@ -205,18 +241,215 @@
 
   /* One visible focus treatment for keyboards; touch never shows it. */
   :focus-visible {
-    outline: 2px solid var(--color-ink);
+    outline: 2px solid var(--color-fg);
     outline-offset: 2px;
   }
 
   /* Quiet scrollbars inside panels. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-hairline-strong) transparent;
+    scrollbar-color: var(--color-line-strong) transparent;
   }
 }
 
-/* A horizontally scrolling strip (lens chips, room pills) without a bar. */
+/* ============================================================================
+   Scenes: the full-screen backdrop. Every gradient is written with literal
+   colors and has a solid color under it: the wall's WebView once dropped a
+   gradient built from custom properties, and a missing backdrop would leave
+   white text on nothing.
+   ============================================================================ */
+.scene {
+  background-color: #2f7ff0;
+  background-image: linear-gradient(160deg, #38a5f7 0%, #2f7ff0 46%, #4a55e2 100%);
+  transition: background-color 1.2s ease;
+}
+/* Home, by the household clock */
+.scene-dawn {
+  background-color: #e86a8c;
+  background-image: linear-gradient(165deg, #ff9f5a 0%, #f2637f 36%, #9a5be6 72%, #4e5fe0 100%);
+}
+.scene-day {
+  background-color: #2f7ff0;
+  background-image: linear-gradient(160deg, #35b0f5 0%, #2f7ff0 46%, #4a55e2 100%);
+}
+.scene-dusk {
+  background-color: #a8409f;
+  background-image: linear-gradient(165deg, #ff7a45 0%, #e0457f 34%, #7b3ad0 70%, #2a2f96 100%);
+}
+/* The other pages, by area */
+.scene-ocean {
+  background-color: #2b6ce6;
+  background-image: linear-gradient(160deg, #2f9bf2 0%, #2b6ce6 48%, #4347cf 100%);
+}
+.scene-sun {
+  background-color: #c9408f;
+  background-image: linear-gradient(160deg, #ff9a3d 0%, #ee4f7a 28%, #a23bc4 68%, #5a3fd0 100%);
+}
+.scene-grape {
+  background-color: #7a45e0;
+  background-image: linear-gradient(160deg, #4f7bf5 0%, #6a4fe6 40%, #9a3fd6 100%);
+}
+.scene-leaf {
+  background-color: #12a085;
+  background-image: linear-gradient(160deg, #22b96f 0%, #0f9f8c 48%, #1774c2 100%);
+}
+.scene-slate {
+  background-color: #33407a;
+  background-image: linear-gradient(160deg, #46589c 0%, #33407a 50%, #3b2f7a 100%);
+}
+:root[data-theme="dark"] .scene {
+  background-color: #0d1030;
+  background-image: linear-gradient(165deg, #161d4d 0%, #0d1030 52%, #1d1245 100%);
+}
+
+/* The drifting lights. Radial gradients fading to transparent, moved with a
+   transform: no blur filter, so a modest wall GPU isn't asked for much. */
+.glow {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  will-change: transform;
+}
+.glow-a {
+  width: 70vmax;
+  height: 70vmax;
+  left: -22vmax;
+  top: -30vmax;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0));
+  animation: hearth-drift-a 46s ease-in-out infinite alternate;
+}
+.glow-b {
+  width: 62vmax;
+  height: 62vmax;
+  right: -20vmax;
+  bottom: -30vmax;
+  background: radial-gradient(closest-side, rgba(110, 255, 230, 0.3), rgba(110, 255, 230, 0));
+  animation: hearth-drift-b 58s ease-in-out infinite alternate;
+}
+.glow-c {
+  width: 44vmax;
+  height: 44vmax;
+  left: 34%;
+  top: 30%;
+  background: radial-gradient(closest-side, rgba(255, 120, 220, 0.2), rgba(255, 120, 220, 0));
+  animation: hearth-drift-c 70s ease-in-out infinite alternate;
+}
+:root[data-theme="dark"] .glow-a {
+  background: radial-gradient(closest-side, rgba(110, 130, 255, 0.24), rgba(110, 130, 255, 0));
+}
+:root[data-theme="dark"] .glow-b {
+  background: radial-gradient(closest-side, rgba(60, 200, 220, 0.16), rgba(60, 200, 220, 0));
+}
+:root[data-theme="dark"] .glow-c {
+  background: radial-gradient(closest-side, rgba(200, 90, 230, 0.14), rgba(200, 90, 230, 0));
+}
+
+/* The sun (or, in the evening, the moon) on Home. */
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(circle at 38% 34%, #fffbe6 0%, #ffe27a 46%, #ffb938 100%);
+  box-shadow:
+    0 0 0 1.4rem rgba(255, 226, 122, 0.16),
+    0 0 0 3.2rem rgba(255, 226, 122, 0.09),
+    0 0 6rem 2rem rgba(255, 200, 90, 0.5);
+  animation: hearth-breathe 9s ease-in-out infinite;
+}
+:root[data-theme="dark"] .orb {
+  background: radial-gradient(circle at 36% 32%, #ffffff 0%, #e6ebff 52%, #b9c3ee 100%);
+  box-shadow:
+    0 0 0 1.2rem rgba(200, 212, 255, 0.07),
+    0 0 5rem 1rem rgba(170, 190, 255, 0.3);
+}
+.star {
+  position: absolute;
+  border-radius: 9999px;
+  background: #ffffff;
+  pointer-events: none;
+  opacity: 0;
+}
+:root[data-theme="dark"] .star {
+  animation: hearth-twinkle 5s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Tiles
+   ============================================================================ */
+.tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1.75rem;
+  color: var(--color-fg);
+  box-shadow: var(--shadow-tile);
+}
+/* The calendar's deep glass: member colors read best against it. */
+.tile-glass {
+  background-color: rgba(13, 18, 54, 0.54);
+  -webkit-backdrop-filter: blur(1.4rem) saturate(1.4);
+  backdrop-filter: blur(1.4rem) saturate(1.4);
+}
+.tile-ocean {
+  background-color: #2b6ce6;
+  background-image: linear-gradient(150deg, #3a93f6 0%, #2b6ce6 52%, #4450d6 100%);
+}
+.tile-sun {
+  background-color: #f2683a;
+  background-image: linear-gradient(150deg, #fba322 0%, #f2683a 50%, #dd3f77 100%);
+}
+.tile-grape {
+  background-color: #8046e0;
+  background-image: linear-gradient(150deg, #6468f2 0%, #8a45de 48%, #d946a0 100%);
+}
+.tile-leaf {
+  background-color: #14a784;
+  background-image: linear-gradient(150deg, #2cc474 0%, #10a58b 50%, #1583bf 100%);
+}
+.tile-paper {
+  box-shadow: 0 1.25rem 2.5rem -1.5rem rgba(6, 10, 40, 0.6);
+}
+:root[data-theme="dark"] .tile-glass {
+  background-color: rgba(26, 32, 72, 0.6);
+}
+:root[data-theme="dark"] .tile-ocean {
+  background-color: #1c3c8f;
+  background-image: linear-gradient(150deg, #23529f 0%, #1c3c8f 52%, #2a2f86 100%);
+}
+:root[data-theme="dark"] .tile-sun {
+  background-color: #8f3a2c;
+  background-image: linear-gradient(150deg, #a35a1c 0%, #8f3a2c 50%, #7a2552 100%);
+}
+:root[data-theme="dark"] .tile-grape {
+  background-color: #4b2c92;
+  background-image: linear-gradient(150deg, #3b3f9a 0%, #532e96 48%, #7c2c68 100%);
+}
+:root[data-theme="dark"] .tile-leaf {
+  background-color: #11604f;
+  background-image: linear-gradient(150deg, #1c7449 0%, #106152 50%, #134f78 100%);
+}
+
+/* The big faint icon in a tile's corner. */
+.watermark {
+  position: absolute;
+  right: -1.5rem;
+  bottom: -2rem;
+  width: 11rem;
+  height: 11rem;
+  opacity: 0.13;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* The bar the dock and the phone's tab bar sit in. */
+.dock {
+  background-color: rgba(13, 18, 54, 0.5);
+  -webkit-backdrop-filter: blur(1.4rem) saturate(1.5);
+  backdrop-filter: blur(1.4rem) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1rem 2.5rem -1rem rgba(6, 10, 40, 0.6);
+}
+
+/* A horizontally scrolling strip (room pills) without a bar. */
 @utility scroll-strip {
   overflow-x: auto;
   scrollbar-width: none;
@@ -230,8 +463,6 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Content updates cross-fade rather than slide or pop (spec §7): anything that
-   moves in peripheral vision all day becomes an irritant. Sheets rise once. */
 @keyframes hearth-fade-in {
   from {
     opacity: 0;
@@ -243,20 +474,72 @@
 @keyframes hearth-rise {
   from {
     opacity: 0;
-    transform: translateY(1.25rem);
+    transform: translateY(1.5rem) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes hearth-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 @keyframes hearth-shimmer {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
   50% {
     opacity: 1;
+  }
+}
+@keyframes hearth-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(16vmax, 12vmax, 0) scale(1.15);
+  }
+}
+@keyframes hearth-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.1);
+  }
+  to {
+    transform: translate3d(-18vmax, -10vmax, 0) scale(0.95);
+  }
+}
+@keyframes hearth-drift-c {
+  from {
+    transform: translate3d(-10vmax, 6vmax, 0);
+  }
+  to {
+    transform: translate3d(12vmax, -8vmax, 0);
+  }
+}
+@keyframes hearth-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+@keyframes hearth-twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.95;
   }
 }
 
@@ -265,6 +548,7 @@
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

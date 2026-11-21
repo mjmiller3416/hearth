@@ -5,18 +5,26 @@ import { colorVar, EVERYONE_COLOR } from "@/lib/calendar/palette";
 import { useTextOn } from "@/components/common/ColorProvider";
 
 // A person's mark: their initial on their color. The same circle everywhere a
-// person appears (lens, calendar, chores, school, allowance), so color and
+// person appears (the dock, calendar, chores, school, allowance), so color and
 // initial together are the family's whole visual vocabulary for "who".
+//
+// Each has a soft white rim, so a person's color still reads when it sits on a
+// tile of a similar color (Ollie's blue on the sky, Lincoln's green on leaf).
+
+/** Dark text on a light member color. Fixed: member colors ignore the theme. */
+export const ON_LIGHT = "#141a33";
 
 const SIZES = {
   xs: "size-6 text-[0.8rem]",
   sm: "size-8 text-[1rem]",
-  md: "size-10 text-[1.3rem]",
-  lg: "size-12 text-[1.6rem]",
-  xl: "size-16 text-[2.1rem]",
+  md: "size-10 text-[1.25rem]",
+  lg: "size-12 text-[1.5rem]",
+  xl: "size-16 text-[2rem]",
 } as const;
 
 export type AvatarSize = keyof typeof SIZES;
+
+const RIM = "shadow-[0_0_0_2px_rgba(255,255,255,0.75)]";
 
 export function Avatar({
   name,
@@ -34,10 +42,10 @@ export function Avatar({
   const dark = textOn(color) === "dark";
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full font-display leading-none ${SIZES[size]} ${className}`}
+      className={`flex shrink-0 items-center justify-center rounded-full font-display font-semibold leading-none ${RIM} ${SIZES[size]} ${className}`}
       style={{
         backgroundColor: `var(${colorVar(color)})`,
-        color: dark ? "#27221c" : "#ffffff",
+        color: dark ? ON_LIGHT : "#ffffff",
       }}
       aria-hidden
     >
@@ -58,10 +66,10 @@ export function FamilyAvatar({
   const dark = textOn(EVERYONE_COLOR) === "dark";
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full ${SIZES[size]} ${className}`}
+      className={`flex shrink-0 items-center justify-center rounded-full ${RIM} ${SIZES[size]} ${className}`}
       style={{
         backgroundColor: `var(${colorVar(EVERYONE_COLOR)})`,
-        color: dark ? "#27221c" : "#ffffff",
+        color: dark ? ON_LIGHT : "#ffffff",
       }}
       aria-hidden
     >
@@ -70,7 +78,10 @@ export function FamilyAvatar({
   );
 }
 
-/** A soft wash of a member color over the card surface (rows, chips, lanes). */
+/**
+ * A translucent wash of a member color (rows, lanes, pills). It is mixed with
+ * transparent rather than with a surface color, so it works on any tile.
+ */
 export function tint(color: string, percent = 16): string {
-  return `color-mix(in srgb, var(${colorVar(color)}) ${percent}%, var(--color-surface))`;
+  return `color-mix(in srgb, var(${colorVar(color)}) ${percent}%, transparent)`;
 }

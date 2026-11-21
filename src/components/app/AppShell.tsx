@@ -18,19 +18,19 @@ import { NAV, type NavId } from "@/lib/config";
 import { useTimeZone } from "@/components/common/TimeZone";
 import { useClock } from "@/hooks/useNow";
 import { HeaderCountdown } from "@/components/layout/HeaderCountdown";
-import { Avatar, FamilyAvatar, tint } from "@/components/ui/Avatar";
+import { Avatar, FamilyAvatar } from "@/components/ui/Avatar";
 import { Sheet, SheetBody, SheetHeader } from "@/components/ui/Sheet";
+import { Backdrop, useScene } from "./Backdrop";
 import { useHousehold } from "./Household";
 
-// The frame around every screen.
+// The frame around every screen: the scene, the page, and one bar at the
+// bottom. There is no header and no side rail, so the page gets the whole
+// screen the way a photo frame does.
 //
-//   wide   a rail of destinations on the left; a header with the clock, the
-//          next countdown and the lens; the page fills the rest and scrolls
-//          inside its own panels (a wall never page-scrolls).
-//   phone  a slim top bar (date, lens, settings), the page scrolling beneath,
-//          and the same five destinations as a tab bar under the thumb.
-//
-// The lens ("who's looking") lives here because it applies to every screen.
+//   wide   the bottom bar holds the people (who's looking), the five
+//          destinations as a dock, and the countdown and Settings.
+//   phone  a slim top line (date, who's looking, Settings), the page scrolling
+//          beneath, and the same five destinations as a floating tab bar.
 
 const ICONS: Record<NavId, LucideIcon> = {
   today: House,
@@ -45,18 +45,16 @@ function useIsActive(): (href: string) => boolean {
   return (href) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/"));
 }
 
-// ── Lens ────────────────────────────────────────────────────────────────────
+// ── People (the lens) ───────────────────────────────────────────────────────
 
-function LensChip({
+/** One person in the wide bar: an avatar, growing a name when selected. */
+function PersonChip({
   active,
-  color,
   label,
   avatar,
   onClick,
 }: {
   active: boolean;
-  /** Palette slug, or null for the neutral "Everyone" chip. */
-  color: string | null;
   label: string;
   avatar: ReactNode;
   onClick: () => void;
@@ -65,47 +63,36 @@ function LensChip({
     <button
       type="button"
       aria-pressed={active}
+      aria-label={label}
       onClick={onClick}
-      className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-4 text-label font-semibold leading-none transition-colors ${
-        active ? "text-ink" : "text-ink-soft"
+      className={`flex h-12 shrink-0 items-center gap-2.5 rounded-full p-1 transition-[background-color,opacity,transform] active:scale-95 ${
+        active ? "bg-accent pr-4 text-on-accent" : "opacity-75"
       }`}
-      style={{
-        backgroundColor: active
-          ? color
-            ? tint(color, 30)
-            : "var(--color-surface)"
-          : "transparent",
-        boxShadow: active
-          ? `inset 0 0 0 2px ${color ? `var(--color-${color})` : "var(--color-ink)"}`
-          : "inset 0 0 0 1px var(--color-hairline-strong)",
-      }}
     >
       {avatar}
-      {label}
+      {active && <span className="text-small font-semibold leading-none">{label}</span>}
     </button>
   );
 }
 
-/** The row of people on the wide header. Tapping the active person clears it. */
-function LensStrip() {
+/** The people in the wide bar. Tapping the selected person clears the choice. */
+function PeopleStrip() {
   const { members, lens, setLens } = useHousehold();
   if (members.length === 0) return null;
   return (
-    <div className="scroll-strip flex min-w-0 items-center gap-2" role="group" aria-label="Who's looking">
-      <LensChip
+    <div className="dock flex items-center gap-1 rounded-full p-1.5" role="group" aria-label="Who's looking">
+      <PersonChip
         active={lens === null}
-        color={null}
         label="Everyone"
-        avatar={<FamilyAvatar size="sm" />}
+        avatar={<FamilyAvatar size="md" />}
         onClick={() => setLens(null)}
       />
       {members.map((m) => (
-        <LensChip
+        <PersonChip
           key={m.key}
           active={lens?.key === m.key}
-          color={m.color}
           label={m.name}
-          avatar={<Avatar name={m.name} color={m.color} size="sm" />}
+          avatar={<Avatar name={m.name} color={m.color} size="md" />}
           onClick={() => setLens(lens?.key === m.key ? null : m.key)}
         />
       ))}
@@ -113,8 +100,8 @@ function LensStrip() {
   );
 }
 
-/** The lens on a phone: one button showing who's selected, opening a picker. */
-function LensButton() {
+/** The people on a phone: one button showing who's selected, opening a picker. */
+function PeopleButton() {
   const { members, lens, setLens } = useHousehold();
   const [open, setOpen] = useState(false);
   if (members.length === 0) return null;
@@ -130,7 +117,7 @@ function LensButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Who's looking: ${lens?.name ?? "Everyone"}. Change`}
-        className="flex min-h-11 items-center gap-2 rounded-full bg-surface py-1 pl-1 pr-3.5 text-label font-semibold text-ink shadow-card ring-1 ring-hairline"
+        className="dock flex min-h-11 items-center gap-2 rounded-full py-1 pl-1 pr-3.5 text-small font-semibold text-fg active:scale-95"
       >
         {lens ? <Avatar name={lens.name} color={lens.color} size="sm" /> : <FamilyAvatar size="sm" />}
         {lens?.name ?? "Everyone"}
@@ -145,14 +132,14 @@ function LensButton() {
           />
           <SheetBody>
             <ul className="flex flex-col gap-2">
-              <LensRow
+              <PersonRow
                 label="Everyone"
                 active={lens === null}
                 avatar={<FamilyAvatar size="lg" />}
                 onClick={() => choose(null)}
               />
               {members.map((m) => (
-                <LensRow
+                <PersonRow
                   key={m.key}
                   label={m.name}
                   active={lens?.key === m.key}
@@ -168,7 +155,7 @@ function LensButton() {
   );
 }
 
-function LensRow({
+function PersonRow({
   label,
   active,
   avatar,
@@ -185,13 +172,13 @@ function LensRow({
         type="button"
         aria-pressed={active}
         onClick={onClick}
-        className={`flex w-full items-center gap-4 rounded-2xl px-3 py-2.5 text-left text-title text-ink transition-colors ${
-          active ? "bg-surface-2 ring-2 ring-inset ring-ink" : "active:bg-surface-2"
+        className={`flex w-full items-center gap-4 rounded-2xl px-3 py-2.5 text-left font-display text-lead text-fg transition-colors ${
+          active ? "bg-fill-2" : "bg-fill active:bg-fill-2"
         }`}
       >
         {avatar}
         <span className="flex-1">{label}</span>
-        {active && <Check className="size-6" strokeWidth={2.5} aria-hidden />}
+        {active && <Check className="size-6 text-accent" strokeWidth={3} aria-hidden />}
       </button>
     </li>
   );
@@ -199,65 +186,63 @@ function LensRow({
 
 // ── Navigation ──────────────────────────────────────────────────────────────
 
-function Rail() {
+/** The destinations in the wide bar. */
+function Dock() {
   const isActive = useIsActive();
   return (
-    <nav
-      aria-label="Primary"
-      className="hidden w-[6.5rem] shrink-0 flex-col items-stretch gap-1.5 border-r border-hairline px-2.5 py-4 wide:flex"
-    >
-      <span className="mb-2 flex h-12 items-center justify-center text-ember" aria-hidden>
-        <Flame className="size-8" strokeWidth={2} />
-      </span>
-      <div className="flex flex-1 flex-col gap-1.5">
-        {NAV.map((item) => (
-          <RailLink
+    <nav aria-label="Primary" className="dock flex items-center gap-1 rounded-full p-1.5">
+      {NAV.map((item) => {
+        const Icon = ICONS[item.id];
+        const active = isActive(item.href);
+        return (
+          <Link
             key={item.id}
             href={item.href}
-            label={item.label}
-            Icon={ICONS[item.id]}
-            active={isActive(item.href)}
-          />
-        ))}
-      </div>
-      <RailLink href="/settings" label="Settings" Icon={Settings} active={isActive("/settings")} />
+            aria-current={active ? "page" : undefined}
+            className={`flex h-12 items-center gap-2 rounded-full px-4 text-small font-semibold leading-none transition-[background-color,color,transform] active:scale-95 ${
+              active ? "bg-accent text-on-accent" : "text-fg-soft"
+            }`}
+          >
+            <Icon className="size-6" strokeWidth={active ? 2.4 : 2} aria-hidden />
+            {item.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }
 
-function RailLink({
-  href,
-  label,
-  Icon,
-  active,
-}: {
-  href: string;
-  label: string;
-  Icon: LucideIcon;
-  active: boolean;
-}) {
+function WideBar() {
+  const isActive = useIsActive();
+  const settings = isActive("/settings");
   return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={`flex flex-col items-center gap-1.5 rounded-2xl px-1 py-3 text-stamp font-semibold transition-colors ${
-        active ? "bg-surface text-ink shadow-card ring-1 ring-hairline" : "text-ink-soft active:bg-ground-2"
-      }`}
-    >
-      <Icon className="size-7" strokeWidth={active ? 2.1 : 1.8} aria-hidden />
-      {label}
-    </Link>
+    <footer className="relative hidden h-[5.5rem] shrink-0 items-center justify-between gap-5 px-7 wide:flex">
+      <div className="flex shrink-0 items-center">
+        <PeopleStrip />
+      </div>
+      <Dock />
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
+        <HeaderCountdown />
+        <Link
+          href="/settings"
+          aria-label="Settings"
+          aria-current={settings ? "page" : undefined}
+          className={`dock flex size-[3.75rem] shrink-0 items-center justify-center rounded-full transition-transform active:scale-90 ${
+            settings ? "text-fg" : "text-fg-soft"
+          }`}
+        >
+          <Settings className="size-6" strokeWidth={settings ? 2.4 : 2} aria-hidden />
+        </Link>
+      </div>
+    </footer>
   );
 }
 
 function TabBar() {
   const isActive = useIsActive();
   return (
-    <nav
-      aria-label="Primary"
-      className="shrink-0 border-t border-hairline bg-surface pb-safe wide:hidden"
-    >
-      <ul className="flex">
+    <nav aria-label="Primary" className="relative shrink-0 px-3 pb-2 pt-1 wide:hidden">
+      <ul className="dock flex rounded-[1.75rem] p-1.5 pb-safe">
         {NAV.map((item) => {
           const Icon = ICONS[item.id];
           const active = isActive(item.href);
@@ -266,17 +251,11 @@ function TabBar() {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] font-semibold ${
-                  active ? "text-ink" : "text-ink-faint"
+                className={`flex min-h-[3.25rem] flex-col items-center justify-center gap-1 rounded-[1.25rem] text-[0.6875rem] font-semibold transition-colors ${
+                  active ? "bg-accent text-on-accent" : "text-fg-soft"
                 }`}
               >
-                <span
-                  className={`flex h-7 w-12 items-center justify-center rounded-full ${
-                    active ? "bg-ground-2" : ""
-                  }`}
-                >
-                  <Icon className="size-[1.35rem]" strokeWidth={active ? 2.2 : 1.9} aria-hidden />
-                </span>
+                <Icon className="size-[1.35rem]" strokeWidth={active ? 2.4 : 2} aria-hidden />
                 {item.label}
               </Link>
             </li>
@@ -284,31 +263,6 @@ function TabBar() {
         })}
       </ul>
     </nav>
-  );
-}
-
-// ── Header ──────────────────────────────────────────────────────────────────
-
-function WideHeader() {
-  const timeZone = useTimeZone();
-  const now = useClock();
-  const time = now
-    ? now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone })
-    : "";
-  const date = now
-    ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", timeZone })
-    : "";
-  return (
-    <header className="hidden h-[5rem] shrink-0 items-center gap-6 border-b border-hairline px-8 wide:flex">
-      <div className="flex shrink-0 flex-col justify-center">
-        <span className="font-display text-display leading-none tabular-nums text-ink">{time || " "}</span>
-        <span className="mt-1 text-label leading-none text-ink-soft">{date || " "}</span>
-      </div>
-      <div className="flex min-w-0 flex-1 justify-center">
-        <HeaderCountdown />
-      </div>
-      <LensStrip />
-    </header>
   );
 }
 
@@ -320,22 +274,22 @@ function PhoneBar() {
     ? now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", timeZone })
     : "";
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 px-4 wide:hidden">
-      <span className="flex items-center gap-2 font-display text-title text-ink">
-        <Flame className="size-5 text-ember" strokeWidth={2.2} aria-hidden />
+    <header className="relative flex h-14 shrink-0 items-center justify-between gap-3 px-4 wide:hidden">
+      <span className="flex items-center gap-2 font-display text-lead font-medium text-fg">
+        <Flame className="size-5 text-spark" strokeWidth={2.4} aria-hidden />
         {date || "Hearth"}
       </span>
       <span className="flex items-center gap-1.5">
-        <LensButton />
+        <PeopleButton />
         <Link
           href="/settings"
           aria-label="Settings"
           aria-current={isActive("/settings") ? "page" : undefined}
-          className={`flex size-11 items-center justify-center rounded-full ${
-            isActive("/settings") ? "bg-ground-2 text-ink" : "text-ink-soft"
+          className={`dock flex size-11 items-center justify-center rounded-full ${
+            isActive("/settings") ? "text-fg" : "text-fg-soft"
           }`}
         >
-          <Settings className="size-6" strokeWidth={1.9} aria-hidden />
+          <Settings className="size-5" strokeWidth={2} aria-hidden />
         </Link>
       </span>
     </header>
@@ -343,15 +297,14 @@ function PhoneBar() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const scene = useScene();
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-ground text-ink">
-      <Rail />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <WideHeader />
-        <PhoneBar />
-        <main className="min-h-0 flex-1 overflow-y-auto wide:overflow-hidden">{children}</main>
-        <TabBar />
-      </div>
+    <div className={`scene ${scene} relative flex h-dvh w-full flex-col overflow-hidden text-fg`}>
+      <Backdrop />
+      <PhoneBar />
+      <main className="relative min-h-0 flex-1 overflow-y-auto wide:overflow-hidden">{children}</main>
+      <WideBar />
+      <TabBar />
     </div>
   );
 }

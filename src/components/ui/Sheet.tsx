@@ -5,10 +5,13 @@ import { X } from "lucide-react";
 import { IconButton } from "./Button";
 
 // The one overlay in the app. Every detail view and form (a day, an event, a
-// recipe, a color, the lens picker) opens the same way: a sheet that rises from
-// the bottom of a phone and sits centered on a wide screen, over a scrim that
-// closes it. Escape closes it too. The body scrolls inside the sheet; the page
-// behind never moves.
+// recipe, a color, the people picker) opens the same way: a sheet of paper that
+// rises from the bottom of a phone and sits centered on a wide screen, over a
+// dimmed scene that closes it. Escape closes it too. The body scrolls inside
+// the sheet; the page behind never moves.
+//
+// A sheet is `.paper`: everything inside reads the paper values of the
+// contextual tokens (dark text by day, slate in the evening).
 
 const WIDTHS = {
   sm: "wide:w-[28rem]",
@@ -43,7 +46,7 @@ export function Sheet({
       role="presentation"
     >
       <div
-        className="absolute inset-0 animate-fade bg-scrim"
+        className="absolute inset-0 animate-fade bg-scrim backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
@@ -51,7 +54,7 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className={`relative flex max-h-[92dvh] w-full animate-rise flex-col overflow-hidden rounded-t-[1.75rem] bg-surface shadow-pop wide:max-h-full wide:max-w-full wide:rounded-[1.75rem] ${WIDTHS[size]}`}
+        className={`paper relative flex max-h-[92dvh] w-full animate-rise flex-col overflow-hidden rounded-t-[2rem] shadow-float wide:max-h-full wide:max-w-full wide:rounded-[2rem] ${WIDTHS[size]}`}
       >
         {children}
       </div>
@@ -74,15 +77,15 @@ export function SheetHeader({
   onClose: () => void;
 }) {
   return (
-    <div className="flex shrink-0 items-start gap-3 border-b border-hairline px-5 py-4 wide:px-7 wide:py-5">
+    <div className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-5 wide:px-7 wide:pt-6">
       {leading}
       <div className="min-w-0 flex-1">
-        <h2 className="font-display text-display leading-tight text-ink">{title}</h2>
-        {subtitle && <p className="mt-1 text-label text-ink-soft">{subtitle}</p>}
+        <h2 className="font-display text-big font-medium leading-tight text-fg">{title}</h2>
+        {subtitle && <p className="mt-1 text-small text-fg-soft">{subtitle}</p>}
       </div>
       {actions}
-      <IconButton label="Close" onClick={onClose} className="-mr-2 -mt-1">
-        <X className="size-6" strokeWidth={2} aria-hidden />
+      <IconButton label="Close" variant="secondary" onClick={onClose} className="-mr-1 -mt-1">
+        <X className="size-6" strokeWidth={2.25} aria-hidden />
       </IconButton>
     </div>
   );
@@ -97,7 +100,7 @@ export function SheetBody({
   className?: string;
 }) {
   return (
-    <div className={`min-h-0 flex-1 overflow-y-auto px-5 py-5 wide:px-7 wide:py-6 ${className}`}>
+    <div className={`min-h-0 flex-1 overflow-y-auto px-5 py-4 wide:px-7 wide:py-5 ${className}`}>
       {children}
     </div>
   );
@@ -106,7 +109,7 @@ export function SheetBody({
 /** The pinned action row at the bottom of a sheet. */
 export function SheetFooter({ children }: { children: ReactNode }) {
   return (
-    <div className="shrink-0 border-t border-hairline px-5 py-4 pb-safe wide:px-7">
+    <div className="shrink-0 border-t border-line bg-fill px-5 py-4 pb-safe wide:px-7">
       <div className="flex items-center gap-3 pb-1">{children}</div>
     </div>
   );

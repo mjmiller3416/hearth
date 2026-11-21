@@ -1,5 +1,6 @@
 "use client";
 
+import { ON_LIGHT } from "@/components/ui/Avatar";
 import { Check, Home, RotateCcw, Sparkles } from "lucide-react";
 import type { Completion, Room } from "@/lib/tada/types";
 import type { CleanSession } from "@/hooks/useHub";
@@ -27,8 +28,8 @@ export function RoomPicker({
   onSelect: (roomId: string | null) => void;
 }) {
   const pill = (active: boolean) =>
-    `flex min-h-10 shrink-0 items-center gap-2 rounded-full px-4 text-label font-semibold leading-none transition-colors ${
-      active ? "bg-ink text-on-ink" : "bg-surface text-ink-soft ring-1 ring-inset ring-hairline-strong"
+    `flex min-h-10 shrink-0 items-center gap-2 rounded-full px-4 text-small font-semibold leading-none transition-colors ${
+      active ? "bg-accent text-on-accent" : "bg-fill text-fg-soft"
     }`;
   return (
     <div className="scroll-strip -mx-4 flex items-center gap-2 px-4 wide:mx-0 wide:px-0" role="group" aria-label="Room">
@@ -72,8 +73,8 @@ export function CleanTask({
   const textOn = useTextOn();
   const { task, justDone, adult, roomName, error } = session;
   const color = adult?.color ?? null;
-  const fill = color ? `var(${colorVar(color)})` : "var(--color-ink)";
-  const onFill = color ? (textOn(color) === "dark" ? "#27221c" : "#ffffff") : "var(--color-on-ink)";
+  const fill = color ? `var(${colorVar(color)})` : "var(--color-accent)";
+  const onFill = color ? (textOn(color) === "dark" ? ON_LIGHT : "#ffffff") : "var(--color-on-accent)";
   // Keyed so each swap cross-fades in (spec §7).
   const key = justDone ? `done-${justDone.task.id}` : task ? `task-${task.id}` : `rest-${session.roomId ?? "all"}`;
 
@@ -84,23 +85,23 @@ export function CleanTask({
           <div className="min-w-0 flex-1">
             {justDone ? (
               <>
-                <p className="text-stamp font-semibold uppercase tracking-[0.1em] text-ink-faint">Nice.</p>
-                <p className="font-display text-title leading-tight text-ink-soft line-through">
+                <p className="text-tiny font-bold uppercase tracking-[0.14em] text-fg-soft">Nice.</p>
+                <p className="font-display text-lead leading-tight text-fg-soft line-through">
                   {justDone.task.name}
                 </p>
               </>
             ) : task ? (
               <>
                 {task.room && (
-                  <p className="text-stamp font-semibold uppercase tracking-[0.1em] text-ink-faint">
+                  <p className="text-tiny font-bold uppercase tracking-[0.14em] text-fg-soft">
                     {task.room}
                   </p>
                 )}
-                <h3 className="text-balance font-display text-title leading-tight text-ink">{task.name}</h3>
+                <h3 className="text-balance font-display text-big font-medium leading-tight text-fg">{task.name}</h3>
               </>
             ) : (
-              <p className="flex items-center gap-2.5 font-display text-title leading-tight text-ink">
-                <Sparkles className="size-6 shrink-0 text-ink-faint" strokeWidth={1.75} aria-hidden />
+              <p className="flex items-center gap-2.5 font-display text-lead leading-tight text-fg">
+                <Sparkles className="size-7 shrink-0 text-spark" strokeWidth={2} aria-hidden />
                 All caught up.
               </p>
             )}
@@ -116,7 +117,7 @@ export function CleanTask({
               onClick={session.complete}
               disabled={!adult}
               aria-label={`Done: ${task.name}`}
-              className="flex size-14 shrink-0 items-center justify-center rounded-full shadow-card transition-transform active:scale-90 disabled:opacity-50"
+              className="flex size-16 shrink-0 items-center justify-center rounded-full shadow-[0_0_0_3px_rgba(255,255,255,0.8)] transition-transform active:scale-90 disabled:opacity-50"
               style={{ backgroundColor: fill, color: onFill }}
             >
               <Check className="size-7" strokeWidth={3} aria-hidden />
@@ -124,7 +125,7 @@ export function CleanTask({
           ) : null}
         </div>
         {error && (
-          <p className="pt-2 text-label text-bad" role="status">
+          <p className="pt-2 text-small text-bad" role="status">
             {error}
           </p>
         )}
@@ -140,14 +141,14 @@ export function CleanTask({
       {justDone ? (
         <>
           <span
-            className="flex size-24 items-center justify-center rounded-full wide:size-32"
+            className="flex size-24 animate-pop items-center justify-center rounded-full shadow-[0_0_0_4px_rgba(255,255,255,0.8)] wide:size-32"
             style={{ backgroundColor: fill, color: onFill }}
           >
             <Check className="size-12 wide:size-16" strokeWidth={2.75} aria-hidden />
           </span>
           <div>
-            <p className="font-display text-title text-ink">Nice.</p>
-            <p className="mt-1 text-balance text-body text-ink-soft">{justDone.task.name}</p>
+            <p className="font-display text-big font-medium text-fg">Nice.</p>
+            <p className="mt-1 text-balance text-body text-fg-soft">{justDone.task.name}</p>
           </div>
           <Button onClick={session.undo} disabled={!justDone.canUndo}>
             <RotateCcw className="size-4" strokeWidth={2.25} aria-hidden />
@@ -158,11 +159,11 @@ export function CleanTask({
         <>
           <div>
             {task.room && (
-              <p className="mb-1 text-label font-semibold uppercase tracking-[0.08em] text-ink-faint">
+              <p className="mb-2 text-small font-bold uppercase tracking-[0.14em] text-fg-soft">
                 {task.room}
               </p>
             )}
-            <h3 className="text-balance font-display text-heading leading-tight text-ink wide:text-date">
+            <h3 className="text-balance font-display text-huge font-medium leading-tight text-fg wide:text-giant">
               {task.name}
             </h3>
           </div>
@@ -176,24 +177,24 @@ export function CleanTask({
             className="group flex flex-col items-center gap-2 disabled:opacity-50"
           >
             <span
-              className="flex size-24 items-center justify-center rounded-full shadow-pop transition-transform group-active:scale-95 wide:size-32"
+              className="flex size-24 items-center justify-center rounded-full shadow-[0_0_0_4px_rgba(255,255,255,0.8),0_1.5rem_3rem_-1rem_rgba(6,10,40,0.7)] transition-transform group-active:scale-95 wide:size-32"
               style={{ backgroundColor: fill, color: onFill }}
             >
               <Check className="size-12 wide:size-16" strokeWidth={2.75} aria-hidden />
             </span>
-            <span className="text-label font-semibold text-ink-soft">Done</span>
+            <span className="text-small font-semibold text-fg-soft">Done</span>
           </button>
         </>
       ) : (
         <>
-          <Sparkles className="size-14 text-ink-faint" strokeWidth={1.5} aria-hidden />
-          <p className="text-balance font-display text-heading leading-tight text-ink">
+          <Sparkles className="size-16 text-spark" strokeWidth={1.5} aria-hidden />
+          <p className="text-balance font-display text-huge leading-tight text-fg">
             {roomName ? `All caught up in the ${roomName}.` : "All caught up."}
           </p>
         </>
       )}
       {error && (
-        <p className="text-label text-bad" role="status">
+        <p className="text-small text-bad" role="status">
           {error}
         </p>
       )}
@@ -215,27 +216,27 @@ export function DoneToday({
   const timeZone = useTimeZone();
   const textOn = useTextOn();
   if (completions.length === 0) {
-    return <p className="text-body text-ink-faint">Nothing yet today. The first one lands here.</p>;
+    return <p className="text-body text-fg-soft">Nothing yet today. The first one lands here.</p>;
   }
   return (
-    <ul className="flex min-h-0 flex-col divide-y divide-hairline overflow-y-auto">
+    <ul className="flex min-h-0 flex-col divide-y divide-line overflow-y-auto">
       {completions.map((c) => (
         <li key={c.completionId} className="flex items-center gap-3 py-2.5">
           <span
-            className="flex size-8 shrink-0 items-center justify-center rounded-full"
+            className="flex size-8 shrink-0 items-center justify-center rounded-full shadow-[0_0_0_2px_rgba(255,255,255,0.75)]"
             style={{
-              backgroundColor: color ? `var(${colorVar(color)})` : "var(--color-ink-soft)",
-              color: color && textOn(color) === "dark" ? "#27221c" : "#ffffff",
+              backgroundColor: color ? `var(${colorVar(color)})` : "var(--color-fg-soft)",
+              color: color && textOn(color) === "dark" ? ON_LIGHT : "#ffffff",
             }}
             aria-hidden
           >
             <Check className="size-4" strokeWidth={3} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-body text-ink">{c.taskName}</span>
-            {c.room && <span className="block text-stamp text-ink-faint">{c.room}</span>}
+            <span className="block truncate text-body text-fg">{c.taskName}</span>
+            {c.room && <span className="block text-tiny text-fg-faint">{c.room}</span>}
           </span>
-          <span className="shrink-0 text-stamp tabular-nums text-ink-faint">
+          <span className="shrink-0 text-tiny tabular-nums text-fg-faint">
             {new Date(c.completedAt).toLocaleTimeString(undefined, {
               hour: "numeric",
               minute: "2-digit",

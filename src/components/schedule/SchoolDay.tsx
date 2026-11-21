@@ -1,13 +1,13 @@
 "use client";
 
 import { Star } from "lucide-react";
-import { Avatar, tint } from "@/components/ui/Avatar";
+import { Avatar } from "@/components/ui/Avatar";
 import { colorVar } from "@/lib/calendar/palette";
 import type { ScheduleActivity, ScheduleKid } from "@/lib/tandem/types";
 import { toMinutes } from "@/lib/tandem/week";
 
 // One school day as a list, per kid: the form a kid reads ("what's now, what's
-// next"), used by the School page on a phone and by Today everywhere. Blocks
+// next"), used by the School page on a phone and by Home everywhere. Blocks
 // already over fade back; the one happening now is marked.
 
 /** "9:00" / "1:45 PM" style label from a 24h "HH:MM". */
@@ -32,27 +32,30 @@ function BlockRow({
   const over = nowMinutes !== null && nowMinutes >= end;
   return (
     <li
-      className={`flex items-center gap-3 rounded-xl py-2 pl-3 pr-3 ${over ? "opacity-45" : ""}`}
-      style={{
-        backgroundColor: isNow ? tint(kid.color, 26) : tint(kid.color, 10),
-        boxShadow: `inset 4px 0 0 var(${colorVar(kid.color)})`,
-      }}
+      className={`flex items-center gap-3 rounded-2xl py-2 pl-2 pr-3 ${over ? "opacity-50" : ""} ${
+        isNow ? "bg-fill-2" : "bg-fill"
+      }`}
     >
-      <span className="w-[5.2em] shrink-0 text-label tabular-nums text-ink-soft">
-        {clock(activity.start)}
+      <span
+        className="w-1.5 shrink-0 self-stretch rounded-full shadow-[0_0_0_1.5px_rgba(255,255,255,0.55)]"
+        style={{ backgroundColor: `var(${colorVar(kid.color)})` }}
+        aria-hidden
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-tiny font-semibold tabular-nums text-fg-soft">
+          {clock(activity.start)} to {clock(activity.end)}
+        </span>
+        <span className="flex min-w-0 items-center gap-1.5 text-body font-medium leading-snug text-fg">
+          {activity.important && (
+            <Star className="size-4 shrink-0 fill-current text-spark" aria-label="Important" />
+          )}
+          <span className="truncate">{activity.name}</span>
+        </span>
       </span>
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-body leading-snug text-ink">
-        {activity.important && (
-          <Star className="size-4 shrink-0 fill-current text-ink" aria-label="Important" />
-        )}
-        <span className="truncate">{activity.name}</span>
-      </span>
-      {isNow ? (
-        <span className="shrink-0 rounded-full bg-ink px-2.5 py-1 text-stamp font-semibold uppercase leading-none tracking-wide text-on-ink">
+      {isNow && (
+        <span className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-tiny font-bold uppercase leading-none tracking-wide text-on-accent">
           Now
         </span>
-      ) : (
-        <span className="shrink-0 text-stamp tabular-nums text-ink-faint">to {clock(activity.end)}</span>
       )}
     </li>
   );
@@ -91,14 +94,14 @@ export function SchoolDay({
         const more = upcoming.length - shown.length;
         return (
           <section key={kid.child} aria-label={`${kid.name}'s day`} className="min-w-0">
-            <header className="mb-2 flex items-center gap-2">
-              <Avatar name={kid.name} color={kid.color} size="xs" />
-              <h3 className="font-display text-title leading-none text-ink">{kid.name}</h3>
+            <header className="mb-2.5 flex items-center gap-2.5">
+              <Avatar name={kid.name} color={kid.color} size="sm" />
+              <h3 className="font-display text-lead font-medium leading-none text-fg">{kid.name}</h3>
             </header>
             {all.length === 0 ? (
-              <p className="text-body text-ink-faint">Nothing scheduled.</p>
+              <p className="text-body text-fg-soft">Nothing scheduled.</p>
             ) : shown.length === 0 ? (
-              <p className="text-body text-ink-faint">Done for the day.</p>
+              <p className="text-body text-fg-soft">Done for the day.</p>
             ) : (
               <ul className="flex flex-col gap-1.5">
                 {shown.map((a) => (
@@ -106,7 +109,7 @@ export function SchoolDay({
                 ))}
               </ul>
             )}
-            {more > 0 && <p className="mt-1.5 text-label text-ink-faint">+{more} later</p>}
+            {more > 0 && <p className="mt-1.5 text-small text-fg-soft">+{more} later</p>}
           </section>
         );
       })}

@@ -2,23 +2,23 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-// The app's buttons. One primary color (ink) everywhere: saturation is reserved
-// for people (spec §7), so an action never competes with a person's color.
+// The app's buttons. They are drawn from the contextual tokens, so the same
+// button is a white pill on a colored tile and a vivid blue one on paper.
 // Every size clears a 44px touch target on a phone and scales up on the wall.
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-ink text-on-ink active:opacity-85",
-  secondary: "bg-surface-2 text-ink ring-1 ring-inset ring-hairline-strong active:bg-ground-2",
-  ghost: "text-ink-soft active:bg-ground-2 hover:bg-surface-2",
+  primary: "bg-accent text-on-accent shadow-[0_0.4rem_1rem_-0.5rem_rgba(6,10,40,0.6)] active:opacity-85",
+  secondary: "bg-fill text-fg active:bg-fill-2",
+  ghost: "text-fg-soft active:bg-fill-2 hover:bg-fill",
   danger: "bg-bad-soft text-bad active:opacity-85",
 };
 
 const SIZES: Record<Size, string> = {
-  sm: "min-h-9 px-3.5 text-label gap-1.5",
-  md: "min-h-11 px-5 text-label gap-2",
+  sm: "min-h-9 px-3.5 text-small gap-1.5",
+  md: "min-h-11 px-5 text-small gap-2",
   lg: "min-h-14 px-7 text-body gap-2.5",
 };
 
@@ -37,7 +37,7 @@ export function Button({
     <button
       type="button"
       {...rest}
-      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none transition-[opacity,background-color,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold leading-none transition-[opacity,background-color,transform] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${SIZES[size]} ${className}`}
     >
       {children}
     </button>
@@ -61,7 +61,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       {...rest}
-      className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-[opacity,background-color,transform] active:scale-95 disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-[opacity,background-color,transform] active:scale-90 disabled:pointer-events-none disabled:opacity-40 ${VARIANTS[variant]} ${className}`}
     >
       {children}
     </button>
@@ -87,7 +87,7 @@ export function Segmented<T extends string>({
     <div
       role="group"
       aria-label={label}
-      className={`inline-flex shrink-0 items-center rounded-full bg-ground-2 p-1 ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full bg-fill p-1 ${className}`}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -97,8 +97,8 @@ export function Segmented<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className={`min-h-9 flex-1 whitespace-nowrap rounded-full px-4 text-label font-semibold leading-none transition-colors ${
-              active ? "bg-surface text-ink shadow-card" : "text-ink-soft"
+            className={`min-h-9 flex-1 whitespace-nowrap rounded-full px-4 text-small font-semibold leading-none transition-colors ${
+              active ? "bg-accent text-on-accent" : "text-fg-soft"
             }`}
           >
             {o.label}
@@ -131,8 +131,8 @@ export function ChoicePills<T extends string>({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(o.value)}
-            className={`min-h-10 rounded-full px-4 text-label font-semibold leading-none transition-colors ${
-              active ? "bg-ink text-on-ink" : "bg-surface-2 text-ink-soft ring-1 ring-inset ring-hairline"
+            className={`min-h-10 rounded-full px-4 text-small font-semibold leading-none transition-colors active:scale-95 ${
+              active ? "bg-accent text-on-accent" : "bg-fill text-fg-soft"
             }`}
           >
             {o.label}
@@ -164,12 +164,12 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onChange(!on)}
       className={`flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors disabled:opacity-40 ${
-        on ? "bg-ink" : "bg-hairline-strong"
+        on ? "bg-accent" : "bg-line-strong"
       }`}
     >
       <span
-        className={`size-6 rounded-full bg-surface transition-transform ${
-          on ? "translate-x-6" : "translate-x-0"
+        className={`size-6 rounded-full shadow-sm transition-transform ${
+          on ? "translate-x-6 bg-on-accent" : "translate-x-0 bg-white"
         }`}
       />
     </button>
