@@ -26,6 +26,7 @@ import { AddItemBar, ShoppingItems } from "@/components/shopping/ShoppingPanel";
 import { KidChoreList } from "@/components/tasks/ChoreList";
 import { CleanTask } from "@/components/tasks/CleanSession";
 import { Button } from "@/components/ui/Button";
+import { WeatherLine, WeatherTile } from "@/components/weather/Weather";
 import { AsOf, SourceGate, Tile } from "@/components/ui/Tile";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import {
@@ -34,6 +35,7 @@ import {
   useMealPlan,
   useSchoolWeek,
   useShoppingList,
+  useWeather,
   type MealPlan,
 } from "@/hooks/useHub";
 import { useIdleReset } from "@/hooks/useIdleReset";
@@ -62,7 +64,7 @@ import { isoDate, mondayOf, toMinutes } from "@/lib/tandem/week";
 // screen the left third is the sky itself: the clock, the date, and tonight's
 // dinner as one big picture. The rest is a handful of tiles, each its own
 // color: the calendar (with the month beside it), the kids' chores, school,
-// the cleaning session and the shopping list. Everything is live and the
+// the cleaning session, the weather and the shopping list. Everything is live and the
 // everyday actions are right there: check off a chore, finish a cleaning task,
 // open tonight's recipe, add to the list, add an event.
 //
@@ -102,6 +104,7 @@ export function HomeView() {
   const clean = useCleanSession();
   const plan = useMealPlan();
   const list = useShoppingList();
+  const weather = useWeather();
 
   const events = eventsForLens(calendar.events, lens?.key ?? null);
   const sheets = useEventSheets({ calendar, events, now: clock });
@@ -358,6 +361,13 @@ export function HomeView() {
       <AllowanceCard key={`allowance-${lens.key}`} member={lens} className="wide:min-w-0 wide:flex-[5]" />
     ) : null;
 
+  // ── Weather: the hours ahead, in the school tile's place once school is
+  // over (or on a day with none). The line under the clock is always there.
+  const weatherTile =
+    !isKid && !schoolTile ? (
+      <WeatherTile key="weather" state={weather} className="wide:min-w-0 wide:flex-1" />
+    ) : null;
+
   // Two rows of tiles on a wide screen; a phone stacks them in this order. A
   // kid's day leads with what a kid needs first: school, chores and their money.
   const rows: ReactNode[][] = isKid
@@ -367,7 +377,7 @@ export function HomeView() {
       ]
     : [
         [agendaTile, choresTile],
-        [schoolTile, cleanTile, shoppingTile],
+        [schoolTile, weatherTile, cleanTile, shoppingTile],
       ];
 
   const greeting = !clock ? "Hello" : lens ? `${lens.name}'s day` : greetingFor(now);
@@ -385,6 +395,7 @@ export function HomeView() {
               ? now.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
               : " "}
           </p>
+          <WeatherLine weather={weather.data} className="mt-2 wide:mt-3" />
           <HeaderCountdown className="mt-3 wide:hidden" />
         </div>
         <DinnerFeature plan={plan} now={now} showLater={!isKid} onOpen={setOpenMeal} />
@@ -535,7 +546,7 @@ function DinnerFeature({
           iconClassName="size-[7rem] -translate-y-[38%] translate-x-[85%] opacity-80 wide:size-[13rem] wide:-translate-y-[22%] wide:translate-x-0 wide:opacity-100"
         />
         <span
-          className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
+          className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 via-45% to-transparent"
           aria-hidden
         />
       </button>

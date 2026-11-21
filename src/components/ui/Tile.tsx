@@ -14,11 +14,12 @@ import type { UpstreamState } from "@/hooks/useUpstream";
 // A source that is still loading, not set up, or not answering looks the same
 // on every screen and never takes its neighbors down with it (spec §6.2).
 
-export type TileTone = "glass" | "ocean" | "sun" | "grape" | "leaf" | "paper";
+export type TileTone = "glass" | "ocean" | "sky" | "sun" | "grape" | "leaf" | "paper";
 
 const TONES: Record<TileTone, string> = {
   glass: "tile-glass",
   ocean: "tile-ocean",
+  sky: "tile-sky",
   sun: "tile-sun",
   grape: "tile-grape",
   leaf: "tile-leaf",

@@ -72,7 +72,7 @@ export function MealTile({
         className="relative block h-48 w-full overflow-hidden rounded-[1.5rem] text-left shadow-tile transition-transform active:scale-[0.98] wide:h-[13.5rem]"
       >
         <MealImage id={meal.mealId} name={meal.name} imageUrl={meal.imageUrl} iconClassName="size-20 -translate-y-[3.1rem] translate-x-[5.6rem] opacity-85" />
-        <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" aria-hidden />
+        <span className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 via-50% to-transparent" aria-hidden />
         <span
           className={`absolute left-3 top-3 rounded-full px-3 py-1.5 text-tiny font-bold uppercase leading-none tracking-wide ${
             tonight ? "bg-spark text-night" : "bg-black/35 text-white"

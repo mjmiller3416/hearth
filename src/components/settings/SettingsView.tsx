@@ -1,9 +1,10 @@
 "use client";
 
-import { MonitorSmartphone, Palette, PiggyBank, PlugZap, Smartphone } from "lucide-react";
+import { CloudSun, MonitorSmartphone, Palette, PiggyBank, PlugZap, Smartphone } from "lucide-react";
 import { AllowanceSettings } from "@/components/allowance/AllowanceSettings";
 import { Tile } from "@/components/ui/Tile";
 import { Page } from "@/components/ui/Page";
+import { WeatherSettings } from "@/components/weather/WeatherSettings";
 import { ColorSettings, type ColorEntry } from "./ColorSettings";
 import { Connections, ScreenSettings } from "./ScreenSettings";
 
@@ -24,6 +25,10 @@ export function SettingsView({ entries }: { entries: ColorEntry[] }) {
             Each person&rsquo;s color is used everywhere they appear, on every screen.
           </p>
           <ColorSettings entries={entries} />
+        </Tile>
+
+        <Tile tone="paper" title="Weather" icon={CloudSun}>
+          <WeatherSettings />
         </Tile>
 
         <Tile tone="paper" title="Allowance" icon={PiggyBank}>

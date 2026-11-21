@@ -394,6 +394,10 @@
   background-color: #2b6ce6;
   background-image: linear-gradient(150deg, #3a93f6 0%, #2b6ce6 52%, #4450d6 100%);
 }
+.tile-sky {
+  background-color: #1f9fd6;
+  background-image: linear-gradient(165deg, #35c3e8 0%, #1f9fd6 48%, #2f78e0 100%);
+}
 .tile-sun {
   background-color: #f2683a;
   background-image: linear-gradient(150deg, #fba322 0%, #f2683a 50%, #dd3f77 100%);
@@ -415,6 +419,10 @@
 :root[data-theme="dark"] .tile-ocean {
   background-color: #1c3c8f;
   background-image: linear-gradient(150deg, #23529f 0%, #1c3c8f 52%, #2a2f86 100%);
+}
+:root[data-theme="dark"] .tile-sky {
+  background-color: #1a4f7d;
+  background-image: linear-gradient(165deg, #1f6a8f 0%, #1a4f7d 48%, #233a86 100%);
 }
 :root[data-theme="dark"] .tile-sun {
   background-color: #8f3a2c;

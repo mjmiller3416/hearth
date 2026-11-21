@@ -5,8 +5,9 @@
 The family hub: the wall display in the living room and everyone's phone, from
 one address. A client, not a store: it reads and writes Google Calendar, Tada!,
 Tandem and Enchanted Spoon through its own route handlers. The only things it
-stores itself are the family colors and the parent-entered allowance amounts
-(two small files, see Storage). README.md is the operator guide;
+stores itself are the family colors, the town the weather is for, and the
+parent-entered allowance amounts (two small files, see Storage). Weather comes
+from Open-Meteo (free, no key). README.md is the operator guide;
 `docs/app-spec.md` holds the decisions (D1–D13) and phase status;
 `docs/enchanted-spoon-integration.md` and `docs/tada-integration-requirements.md`
 are the upstream contracts.
@@ -46,7 +47,7 @@ Run from PowerShell, or from WSL as
 - Local dev: `npx next dev -p <port>` with `HEARTH_DEVICE_TOKEN` set, then open
   `/setup?token=<token>` once. Process env overrides `.env.local`. Mock flags:
   `HEARTH_CALENDAR_MOCK`, `HEARTH_TASKS_MOCK`, `HEARTH_MEALS_MOCK` (meals and
-  shopping), `HEARTH_SCHEDULE_MOCK`, all ignored in production. The mocks keep
+  shopping), `HEARTH_SCHEDULE_MOCK`, `HEARTH_WEATHER_MOCK`, all ignored in production. The mocks keep
   no server-side store: a mock-created event can't be edited ("no longer
   exists"); edit one of the mock feed's own events instead.
 - A production build run locally (`npx next start`) ignores the mocks, so with
@@ -155,11 +156,26 @@ are gone; don't reintroduce them. Spec §7 has the direction.
 
 - `src/lib/settings/dataDir.ts` resolves the directory: `HEARTH_DATA_DIR` (a
   Railway volume at `/data`), else `./.hearth-data` (replaced on every deploy).
-  `settings.json` is the family colors (spec D12); `allowance.json` is the
+  `settings.json` is the family colors (spec D12) and the weather town;
+  `allowance.json` is the
   parent-entered balances and the hashed parent PIN (spec D13).
 - The container starts as root only so `scripts/docker-entrypoint.sh` can chown
   the volume, then drops to the `nextjs` user with su-exec. Keep it that way
   rather than setting `RAILWAY_RUN_UID=0`.
+
+## Weather
+
+- `src/lib/weather/`: Open-Meteo forecast (`client.ts`), kept in process memory
+  ten minutes per place and served stale for up to two hours if the service
+  stops answering. Fahrenheit; times in the household timezone.
+- The town is chosen in Settings → Weather (`GET /api/weather/places?q=`, then
+  `PUT /api/weather/place`) and stored in `settings.json` beside the colors, so
+  `setColorOverride` and `setWeatherPlace` share one write queue and each keeps
+  the other's data. `HEARTH_WEATHER_LAT/LON/NAME` are a fallback only.
+- Only the town's coordinates (rounded to two decimals) and the typed search
+  text leave Hearth. Don't send anything else to it.
+- On Home: `WeatherLine` under the clock always; `WeatherTile` takes the school
+  tile's slot when school isn't showing (family view only).
 
 ## Allowance (parent-entered; Greenlight has no API)
 
@@ -216,7 +232,7 @@ are gone; don't reintroduce them. Spec §7 has the direction.
   production has the same values.
 - Kill switch: `HEARTH_MCP_ENABLED=0` (every connector route 404s). Disconnect
   everyone: set a new `HEARTH_MCP_SECRET` on Railway.
-- Tools (22) call the same action functions as the wall's routes, so the
+- Tools (23) call the same action functions as the wall's routes, so the
   allowlists hold (member calendars, read-set allowlist on edit/delete, the
   Tada! acting-member allowlist). A new wall route needs a tool or an
   `UNCOVERED_ROUTES` entry, or the build fails. Settings (colors) and the parent

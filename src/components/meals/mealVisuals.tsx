@@ -20,9 +20,10 @@ import {
 } from "lucide-react";
 
 // Visual identity for a meal — a deterministic color "tone" and a food icon,
-// derived from the meal's id and name. Enchanted Spoon sends no photo today
-// (imageUrl is null on every row), so every meal would otherwise look the same.
-// Instead each meal gets a vivid colored picture with a big white food glyph. When Enchanted Spoon starts returning image URLs, MealImage
+// derived from the meal's id and name. Enchanted Spoon sends each recipe's own
+// photo when it has one (its banner or reference image, a Cloudinary address),
+// and MealImage shows that. A recipe without a photo, and every meal in the
+// mock data, gets a vivid colored picture with a big white food glyph instead. When Enchanted Spoon starts returning image URLs, MealImage
 // renders the real photo and the placeholder simply stops showing — no other
 // change needed (spec: design for images, ship the image-less state first).
 //

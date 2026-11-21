@@ -1,5 +1,6 @@
 import { getMembers } from "@/lib/calendar/config";
 import { EVERYONE_COLOR } from "@/lib/calendar/palette";
+import type { WeatherPlace } from "@/lib/weather/types";
 import { readDataFile, writeDataFile } from "./dataDir";
 import {
   DEFAULT_COLORS,
@@ -8,7 +9,8 @@ import {
   textFromHex,
 } from "./swatches";
 
-// The persisted color settings (spec D12). SERVER-ONLY: reads and writes a JSON
+// The persisted display settings: the family colors (spec D12) and the town the
+// weather is for. SERVER-ONLY: reads and writes a JSON
 // file in Hearth's data dir (see ./dataDir for where that is and when it
 // survives a redeploy). Never import from a client component.
 //
@@ -20,6 +22,16 @@ import {
 export interface Settings {
   /** Palette slug -> swatch id. Absent slugs use their globals.css default. */
   colorsBySlug: Record<string, string>;
+  /** The town the forecast is for, or null when none has been chosen. */
+  weather: WeatherPlace | null;
+}
+
+/** A stored place, if it has the right shape. */
+function parsePlace(value: unknown): WeatherPlace | null {
+  if (typeof value !== "object" || value === null) return null;
+  const { name, latitude, longitude } = value as Record<string, unknown>;
+  if (typeof name !== "string" || typeof latitude !== "number" || typeof longitude !== "number") return null;
+  return { name, latitude, longitude };
 }
 
 const FILE = "settings.json";
@@ -29,6 +41,7 @@ export async function readSettings(): Promise<Settings> {
   return {
     colorsBySlug:
       parsed?.colorsBySlug && typeof parsed.colorsBySlug === "object" ? parsed.colorsBySlug : {},
+    weather: parsePlace(parsed?.weather),
   };
 }
 
@@ -68,7 +81,7 @@ export async function setColorOverride(
     } else {
       nextColors[slug] = swatchId;
     }
-    const next: Settings = { colorsBySlug: nextColors };
+    const next: Settings = { ...current, colorsBySlug: nextColors };
     await writeSettings(next);
     return next;
   };
@@ -78,6 +91,19 @@ export async function setColorOverride(
   // fulfilled or rejected.
   const run = writeChain.then(apply, apply);
   writeChain = run.catch(() => {}); // keep the chain alive past any failure
+  return run;
+}
+
+/** Set (or clear, with null) the town the forecast is for. */
+export async function setWeatherPlace(place: WeatherPlace | null): Promise<Settings> {
+  const apply = async (): Promise<Settings> => {
+    const next: Settings = { ...(await readSettings()), weather: place };
+    await writeSettings(next);
+    return next;
+  };
+  // Same queue as the colors: one read-modify-write at a time.
+  const run = writeChain.then(apply, apply);
+  writeChain = run.catch(() => {});
   return run;
 }
 

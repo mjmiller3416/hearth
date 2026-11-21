@@ -29,6 +29,11 @@ school day, their chores, and for a kid their allowance. Nobody selected is the
 whole family's day. It is attribution, not a login (spec §6.3). A phone
 remembers its lens, so a kid's phone opens on that kid's day.
 
+**Weather.** Choose the town once in Settings → Weather (type a town or ZIP
+code and pick the match). Home then shows the conditions under the clock, and
+the hours ahead in a tile once the school day is over. The forecast comes from
+Open-Meteo, a free service with no account; only the town's location is sent.
+
 **Every source stands alone.** Each card polls its own app (every minute, and
 when the screen comes back into view) and shows one of the same four states
 everywhere: loading, not connected, can't reach it right now, or its data with a

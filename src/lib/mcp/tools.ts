@@ -1,5 +1,6 @@
 import { fail, ok, type ActionResult } from "@/lib/action";
 import { listAllowance, setBalanceTrusted } from "@/lib/allowance/actions";
+import { getWeather } from "@/lib/weather/actions";
 import {
   createEvent,
   deleteEvent,
@@ -68,6 +69,9 @@ export const UNCOVERED_ROUTES: Record<string, string> = {
   "PUT /api/settings": "Family colors are a display preference (theme) for the wall.",
   "GET /api/home-base/summary":
     "Home Base's own read-only feed (its token, not the wall's); ChatGPT reads each source through its own tools.",
+  "GET /api/weather/places": "The town search behind Settings → Weather: a display setting for the wall.",
+  "GET /api/weather/place": "Which town the forecast is for: a display setting for the wall.",
+  "PUT /api/weather/place": "Which town the forecast is for: a display setting for the wall.",
   "POST /api/allowance/pin":
     "The parent PIN guards the wall's screens; the connector is already limited to a parent by its connect password.",
 };
@@ -737,6 +741,20 @@ export const TOOLS: ToolDef[] = [
     annotations: READ,
     routes: ["GET /api/schedule"],
     run: (args) => scheduleWeek(str(args, "week") ?? restingMonday(householdToday(resolveTimeZone()))),
+  },
+
+  // ── Weather ──
+  {
+    name: "get_weather",
+    title: "Get the weather at home",
+    description:
+      "The forecast Hearth shows for the household's town: conditions now, the next 12 hours and the next " +
+      "few days, in Fahrenheit, with times in the household's timezone. `configured` is false when no town " +
+      "has been chosen in Hearth's Settings.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    annotations: READ,
+    routes: ["GET /api/weather"],
+    run: () => getWeather(),
   },
 
   // ── Allowance (parent-entered; nothing is synced from Greenlight) ──

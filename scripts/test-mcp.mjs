@@ -42,6 +42,7 @@ const TEST_ENV = {
   HEARTH_TASKS_MOCK: "1",
   HEARTH_MEALS_MOCK: "1",
   HEARTH_SCHEDULE_MOCK: "1",
+  HEARTH_WEATHER_MOCK: "1",
   HOUSEHOLD_TIMEZONE: "America/New_York",
 };
 
@@ -334,7 +335,7 @@ async function run() {
     check("ping", ping.json?.result && Object.keys(ping.json.result).length === 0);
     const list = await rpc(access, "tools/list");
     const tools = list.json?.result?.tools ?? [];
-    check("tools/list returns 22 tools", tools.length === 22, `got ${tools.length}`);
+    check("tools/list returns 23 tools", tools.length === 23, `got ${tools.length}`);
     check("every tool has a schema and annotations", tools.every((t) =>
       t.inputSchema?.type === "object" && typeof t.annotations?.readOnlyHint === "boolean" &&
       t.annotations.openWorldHint === false && t.description));
@@ -470,6 +471,9 @@ async function run() {
     const getBal = await call(access, "get_allowance");
     const getRows = getBal.json?.result?.structuredContent?.balances ?? [];
     check("get_allowance lists every kid, unset ones as null", getRows.length === 2 && getRows.find((b) => b.memberKey === "ollie")?.cents === null);
+    const wx = await call(access, "get_weather");
+    const wxBody = wx.json?.result?.structuredContent ?? JSON.parse(wx.json?.result?.content?.[0]?.text ?? "{}");
+    check("get_weather returns now, hours and days", wxBody?.configured === true && typeof wxBody.now?.temp === "number" && wxBody.hours?.length === 12 && wxBody.days?.length === 4);
     const badKid = await call(access, "set_allowance_balance", { member: "mitchell", amount: "5" });
     check("set_allowance_balance refuses someone who isn't a kid", badKid.json?.result?.isError === true);
     const badAmt = await call(access, "set_allowance_balance", { member: "lincoln", amount: "a lot" });
@@ -511,6 +515,16 @@ async function run() {
     check("wall: undo as a stranger → 403", undoBad.status === 403);
     // Allowance on the wall: who can read what, and the parent PIN.
     const jsonPost = (path, method, body) => req(path, { method, headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify(body) });
+    const putPlace = await req("/api/weather/place", { method: "PUT", headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify({ name: "Testville", latitude: 35.6, longitude: -82.55 }) });
+    const gotPlace = await (await req("/api/weather/place", { headers: cookie })).json();
+    check("weather place saves and reads back", putPlace.status === 200 && gotPlace.place?.name === "Testville" && gotPlace.fromEnv === false);
+    const badPlace = await req("/api/weather/place", { method: "PUT", headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify({ name: "Nowhere", latitude: 400, longitude: 0 }) });
+    check("weather place refuses impossible coordinates", badPlace.status === 400);
+    const colorsAfter = await req("/api/settings", { method: "PUT", headers: { ...cookie, "content-type": "application/json" }, body: JSON.stringify({ slug: "everyone", swatchId: "orange" }) });
+    const placeKept = await (await req("/api/weather/place", { headers: cookie })).json();
+    check("changing a color keeps the weather place", colorsAfter.status === 200 && placeKept.place?.name === "Testville");
+    const wxNoCookie = await req("/api/weather");
+    check("weather needs a paired device", wxNoCookie.status === 401 || wxNoCookie.status === 403);
     const own = await (await req("/api/allowance?viewer=lincoln", { headers: cookie })).json();
     check("wall: a kid's lens reads their own balance", own.balance?.cents === 1250 && own.balance.source === "manual");
     const sibling = await (await req("/api/allowance?viewer=ollie", { headers: cookie })).json();

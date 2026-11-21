@@ -23,6 +23,7 @@ import type {
   ShoppingListPayload,
 } from "@/lib/spoon/types";
 import type { SchedulePayload } from "@/lib/tandem/types";
+import type { WeatherPayload } from "@/lib/weather/types";
 
 // One hook per household source. Each owns its polling (on the stale-data
 // contract in useUpstream) and its optimistic writes, so Today's cards and the
@@ -389,6 +390,18 @@ export function useCleanSession(): CleanSession {
     undo: () => void undo(),
     reset,
   };
+}
+
+// ── Weather (Open-Meteo, for the town chosen in Settings) ───────────────────
+
+/** How often a screen asks for the forecast (the server keeps it ten minutes). */
+const WEATHER_REFRESH_MS = 10 * 60_000;
+
+/** The forecast. `data.configured` is false until a town is chosen. */
+export function useWeather(): UpstreamState<WeatherPayload> {
+  const mounted = useMounted();
+  const fetcher = useCallback(() => getJson<WeatherPayload>("/api/weather"), []);
+  return useUpstream<WeatherPayload>(fetcher, { enabled: mounted, intervalMs: WEATHER_REFRESH_MS });
 }
 
 // ── Meal plan (Enchanted Spoon) ─────────────────────────────────────────────
